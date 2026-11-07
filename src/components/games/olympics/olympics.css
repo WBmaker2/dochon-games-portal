@@ -1,0 +1,531 @@
+/* ==========================================================================
+   DOCHON MINI OLYMPICS - HIGH AGENCY DESIGN SYSTEM & STYLESHEET
+   ========================================================================== */
+
+.olympics-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  min-height: 540px;
+  background: radial-gradient(circle at 50% 15%, #1E1B4B 0%, #0F172A 70%, #090D16 100%);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  user-select: none;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  position: relative;
+  border: 1.5px solid rgba(245, 158, 11, 0.35);
+}
+
+/* --------------------------------------------------------------------------
+   1. HEADER & LIVE SCOREBOARD HUD
+   -------------------------------------------------------------------------- */
+.olympics-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: rgba(15, 23, 42, 0.92);
+  border-bottom: 2px solid rgba(245, 158, 11, 0.4);
+  backdrop-filter: blur(12px);
+  z-index: 20;
+}
+
+.olympics-title-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.olympics-title-main {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #FFFFFF;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.olympics-event-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  color: #FDE047;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+
+/* Live Score & Progress Stats in HUD */
+.olympics-hud-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.olympics-stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  padding: 5px 12px;
+  border-radius: 12px;
+}
+
+.olympics-stat-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #94A3B8;
+  text-transform: uppercase;
+}
+
+.olympics-stat-value {
+  font-size: 14px;
+  font-weight: 900;
+  color: #FBBF24;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+
+.olympics-btn-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #FFFFFF;
+}
+
+.olympics-btn-icon:hover {
+  background: rgba(51, 65, 85, 1);
+  transform: translateY(-1px);
+  border-color: rgba(245, 158, 11, 0.6);
+}
+
+.olympics-btn-icon:active {
+  transform: translateY(1px);
+}
+
+/* --------------------------------------------------------------------------
+   2. VIEWPORT & CANVAS
+   -------------------------------------------------------------------------- */
+.olympics-viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: 440px;
+  background: #020617;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.olympics-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+   3. OVERLAYS (Countdown, Intro, Results)
+   -------------------------------------------------------------------------- */
+.olympics-overlay-screen {
+  position: absolute;
+  inset: 0;
+  background: rgba(9, 13, 22, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 30;
+}
+
+.olympics-countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 25;
+}
+
+.olympics-countdown-text {
+  font-size: 4rem;
+  font-weight: 900;
+  color: #FDE047;
+  text-shadow: 0 6px 24px rgba(253, 224, 71, 0.9), 0 0 50px rgba(0, 0, 0, 0.9);
+  letter-spacing: 2px;
+}
+
+/* Intro Card */
+.olympics-intro-card {
+  width: 100%;
+  max-width: 440px;
+  background: #0F172A;
+  border: 2px solid #F59E0B;
+  border-radius: 28px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Results Ceremony Card */
+.olympics-results-card {
+  width: 100%;
+  max-width: 420px;
+  background: #0F172A;
+  border: 2.5px solid #F59E0B;
+  border-radius: 28px;
+  padding: 22px;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9);
+}
+
+/* --------------------------------------------------------------------------
+   4. HIGH-VISIBILITY CONTROLS PANEL (Horizontal 1-Row Gamepad Layout)
+   -------------------------------------------------------------------------- */
+.olympics-controls-panel {
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(11, 17, 32, 0.96);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.15);
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 20;
+}
+
+.olympics-gamepad-row {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  max-width: 680px !important;
+  gap: 16px !important;
+}
+
+/* Left Cluster: Left Foot & Right Foot Runner Buttons */
+.olympics-gamepad-left-cluster {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex: 1.2 !important;
+}
+
+.olympics-gamepad-left-cluster .olympics-control-btn {
+  flex: 1 !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+  padding: 10px 8px !important;
+}
+
+/* Right Cluster: Jump Button */
+.olympics-gamepad-right-cluster {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  flex: 0.9 !important;
+}
+
+.olympics-gamepad-right-cluster .olympics-control-btn {
+  width: 100% !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+  padding: 10px 12px !important;
+}
+
+/* Base Control Button (Strict High-Contrast Guarantee) */
+.olympics-control-btn {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  padding: 10px 14px !important;
+  border-radius: 16px !important;
+  font-weight: 900 !important;
+  font-size: 13.5px !important;
+  color: #FFFFFF !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8) !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  cursor: pointer !important;
+  transition: all 0.12s ease !important;
+  touch-action: manipulation !important;
+  user-select: none !important;
+}
+
+.olympics-control-btn:hover {
+  filter: brightness(1.15) !important;
+  transform: translateY(-2px) !important;
+}
+
+.olympics-control-btn:active {
+  transform: translateY(1px) scale(0.97) !important;
+  filter: brightness(0.9) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Specific Control Button Color Schemes */
+.btn-hurdle-step {
+  background: linear-gradient(135deg, #D97706, #B45309) !important;
+  border-color: #FBBF24 !important;
+}
+
+.btn-hurdle-jump {
+  background: linear-gradient(135deg, #10B981, #047857) !important;
+  border-color: #6EE7B7 !important;
+}
+
+.btn-shoot-action {
+  background: linear-gradient(135deg, #EA580C, #C2410C) !important;
+  border-color: #FDBA74 !important;
+  min-height: 52px !important;
+}
+
+.btn-canoe-steer {
+  background: linear-gradient(135deg, #0284C7, #0369A1) !important;
+  border-color: #7DD3FC !important;
+}
+
+/* Key Hint Pill inside Buttons */
+.olympics-btn-key-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #FDE047;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 1px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+}
+
+/* --------------------------------------------------------------------------
+   5. MODAL & HOW TO PLAY
+   -------------------------------------------------------------------------- */
+.olympics-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.olympics-howto-modal {
+  width: 100%;
+  max-width: 500px;
+  background: #0F172A;
+  border: 2.5px solid #F59E0B;
+  border-radius: 28px;
+  padding: 22px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.95);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.olympics-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+.olympics-modal-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 10px;
+  color: #94A3B8;
+  transition: all 0.2s ease;
+}
+
+.olympics-modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
+}
+
+.olympics-howto-intro {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1.5px solid rgba(245, 158, 11, 0.4);
+  border-radius: 16px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.olympics-event-card {
+  border-width: 2px;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.olympics-key {
+  display: inline-block;
+  padding: 2px 7px;
+  background: #1E293B;
+  border: 1.5px solid #475569;
+  border-radius: 8px;
+  color: #FDE047;
+  font-weight: 900;
+  font-size: 11px;
+  box-shadow: 0 2px 0 #0F172A;
+}
+
+/* Action Buttons */
+.olympics-btn-primary {
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+  color: #FFFFFF;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(217, 119, 6, 0.45);
+  transition: all 0.2s ease;
+}
+
+.olympics-btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.olympics-btn-primary:active {
+  transform: translateY(1px);
+}
+
+.olympics-btn-secondary {
+  background: #334155;
+  color: #E2E8F0;
+  border: 1.5px solid #475569;
+  padding: 10px 16px;
+  border-radius: 14px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.olympics-btn-secondary:hover {
+  background: #475569;
+}
+
+.olympics-name-input {
+  flex: 1;
+  background: #1E293B;
+  border: 2px solid #F59E0B;
+  border-radius: 14px;
+  padding: 10px 14px;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 800;
+  outline: none;
+}
+
+.olympics-name-input::placeholder {
+  color: #94A3B8;
+  font-weight: 600;
+}
+
+/* Custom Retry Button (High-Contrast & Tactile Design) */
+.olympics-btn-retry {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  padding: 12px 18px !important;
+  margin-top: 10px !important;
+  background: linear-gradient(135deg, #1E293B, #0F172A) !important;
+  color: #F8FAFC !important;
+  border: 1.5px solid #475569 !important;
+  border-radius: 14px !important;
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  transition: all 0.2s ease !important;
+  user-select: none !important;
+}
+
+.olympics-btn-retry:hover {
+  background: linear-gradient(135deg, #334155, #1E293B) !important;
+  border-color: #F59E0B !important;
+  color: #FDE047 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.25) !important;
+}
+
+.olympics-btn-retry:active {
+  transform: translateY(1px) scale(0.98) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Score Breakdown Table Styles */
+.olympics-score-table {
+  background: rgba(15, 23, 42, 0.95) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 18px !important;
+  padding: 14px 18px !important;
+  margin-bottom: 14px !important;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6) !important;
+}
+
+.olympics-score-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 5px 0 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #E2E8F0 !important;
+}
+
+.olympics-score-total-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding-top: 8px !important;
+  margin-top: 6px !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+  font-size: 15px !important;
+  font-weight: 900 !important;
+  color: #FFFFFF !important;
+}

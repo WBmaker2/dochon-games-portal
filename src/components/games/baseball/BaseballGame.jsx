@@ -1,0 +1,1126 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  PITCHER_POS,
+  BATTER_POS,
+  HOME_PLATE_POS,
+  PITCH_TYPES,
+  HIT_RESULTS,
+  SPEED_LEVELS,
+  BASEBALL_THEMES
+} from './baseballConstants';
+import {
+  createTransparentSprite,
+  selectNextPitch,
+  calculateBallState,
+  calculatePitchSpeed,
+  judgeSwing,
+  advanceRunners,
+  ParticleSystem
+} from './baseballLogic';
+import BaseballHowToPlayModal from './BaseballHowToPlayModal';
+import { soundFx } from '../../../utils/audio';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
+import { haptics } from '../../../utils/haptics';
+import {
+  Volume2,
+  VolumeX,
+  HelpCircle,
+  RotateCcw,
+  Trophy,
+  Flame,
+  Zap,
+  Sparkles,
+  Award,
+  Send,
+  CheckCircle2
+} from 'lucide-react';
+import './baseball.css';
+
+// Base Asset Path Helper
+const getAsset = (file) => `${import.meta.env.BASE_URL}assets/baseball/${file}`;
+
+export default function BaseballGame({ onScoreSubmitted }) {
+  const canvasRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const particleSystemRef = useRef(new ParticleSystem());
+
+  // Image & Sprite Refs
+  const assetsLoadedRef = useRef(false);
+  const bgImgRef = useRef(null);
+  const batterReadySpriteRef = useRef(null);
+  const batterSwingSpriteRef = useRef(null);
+  const pitcherSpriteRef = useRef(null);
+  const homerunBadgeImgRef = useRef(null);
+
+  // =========================================================================
+  // Single Source of Truth REFS for 100% Stutter-Free State Machine
+  // =========================================================================
+  const gameStateRef = useRef('IDLE'); // 'IDLE' | 'PITCHING' | 'HIT_ANIMATION' | 'MISS_ANIMATION' | 'GAME_OVER'
+  const scoreRef = useRef(0);
+  const runsRef = useRef(0);
+  const hitsRef = useRef(0);
+  const homerunsRef = useRef(0);
+  const longestDistanceRef = useRef(0);
+  const comboRef = useRef(0);
+  const maxComboRef = useRef(0);
+  const ballsRef = useRef(0);
+  const strikesRef = useRef(0);
+  const outsRef = useRef(0);
+  const runnersRef = useRef([false, false, false]); // [1B, 2B, 3B]
+
+  const currentPitchRef = useRef(PITCH_TYPES.FASTBALL);
+  const speedLevelRef = useRef(SPEED_LEVELS[0]);
+  const pitchStartTimeRef = useRef(0);
+  const pitchDurationRef = useRef(2000);
+  const isSwungRef = useRef(false);
+  const swingDisplayTimerRef = useRef(null);
+  const batterStateRef = useRef('READY'); // 'READY' | 'SWING'
+  const nextPitchTimeoutRef = useRef(null);
+
+  // =========================================================================
+  // React State for UI HUD Sync
+  // =========================================================================
+  const [gameState, setGameState] = useState('IDLE');
+  const [score, setScore] = useState(0);
+  const [runs, setRuns] = useState(0);
+  const [hits, setHits] = useState(0);
+  const [homeruns, setHomeruns] = useState(0);
+  const [longestDistance, setLongestDistance] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [balls, setBalls] = useState(0);
+  const [strikes, setStrikes] = useState(0);
+  const [outs, setOuts] = useState(0);
+  const [runners, setRunners] = useState([false, false, false]);
+  const [speedLevel, setSpeedLevel] = useState(SPEED_LEVELS[0]);
+
+  // UI / Feedback Overlays
+  const [isMuted, setIsMuted] = useState(soundFx.muted);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = soundFx;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
+  const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
+  const [pitchToast, setPitchToast] = useState(null);
+  const [speedUpAlert, setSpeedUpAlert] = useState(null);
+  const [hitFeedback, setHitFeedback] = useState(null);
+  const [showHomerunBadge, setShowHomerunBadge] = useState(false);
+
+  // Leaderboard Registration
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'baseball', score: scoreRef.current, onSubmitted: onScoreSubmitted, variant: 'silent' });
+
+  // Synchronize refs to React state for UI rendering
+  const syncUiState = useCallback(() => {
+    setGameState(gameStateRef.current);
+    setScore(scoreRef.current);
+    setRuns(runsRef.current);
+    setHits(hitsRef.current);
+    setHomeruns(homerunsRef.current);
+    setLongestDistance(longestDistanceRef.current);
+    setCombo(comboRef.current);
+    setBalls(ballsRef.current);
+    setStrikes(strikesRef.current);
+    setOuts(outsRef.current);
+    setRunners([...runnersRef.current]);
+    setSpeedLevel(speedLevelRef.current);
+  }, []);
+
+  // 1. Asset Preloading & Transparent Sprite Generation
+  useEffect(() => {
+    let isMounted = true;
+
+    const bg = new Image();
+    const bReady = new Image();
+    const bSwing = new Image();
+    const pitcher = new Image();
+    const badge = new Image();
+
+    bg.src = getAsset('bg_stadium.webp');
+    bReady.src = getAsset('batter_ready.webp');
+    bSwing.src = getAsset('batter_swing.webp');
+    pitcher.src = getAsset('pitcher_throw.webp');
+    badge.src = getAsset('homerun_badge.webp');
+
+    let loadedCount = 0;
+    const totalToLoad = 5;
+
+    const onAssetLoaded = () => {
+      loadedCount++;
+      if (loadedCount === totalToLoad && isMounted) {
+        bgImgRef.current = bg;
+        batterReadySpriteRef.current = createTransparentSprite(bReady, 225);
+        batterSwingSpriteRef.current = createTransparentSprite(bSwing, 225);
+        pitcherSpriteRef.current = createTransparentSprite(pitcher, 225);
+        homerunBadgeImgRef.current = badge;
+        assetsLoadedRef.current = true;
+      }
+    };
+
+    bg.onload = onAssetLoaded;
+    bReady.onload = onAssetLoaded;
+    bSwing.onload = onAssetLoaded;
+    pitcher.onload = onAssetLoaded;
+    badge.onload = onAssetLoaded;
+
+    return () => {
+      isMounted = false;
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (nextPitchTimeoutRef.current) clearTimeout(nextPitchTimeoutRef.current);
+      if (swingDisplayTimerRef.current) clearTimeout(swingDisplayTimerRef.current);
+    };
+  }, []);
+
+  // Audio Toggle
+  const toggleSound = () => {
+    const nextMuted = soundFx.toggleMute();
+    setIsMuted(nextMuted);
+  };
+
+  // 2. Start a New Pitch (Dynamically scales pitch duration and speed tier)
+  const startNextPitch = useCallback(() => {
+    if (nextPitchTimeoutRef.current) clearTimeout(nextPitchTimeoutRef.current);
+
+    if (outsRef.current >= 3) {
+      gameStateRef.current = 'GAME_OVER';
+      syncUiState();
+      return;
+    }
+
+    try {
+      const currentScore = scoreRef.current;
+      const currentCombo = comboRef.current;
+      const pitch = selectNextPitch(currentScore, currentCombo);
+      const speedInfo = calculatePitchSpeed(currentScore, pitch);
+
+      // Check if speed level leveled up!
+      if (speedInfo.speedLevel.level > speedLevelRef.current.level) {
+        try {
+          soundFx?.playPacmanEatFruit?.();
+        } catch (audioErr) {
+          console.warn('Audio play error:', audioErr);
+        }
+        setSpeedUpAlert(speedInfo.speedLevel);
+        setTimeout(() => setSpeedUpAlert(null), 1800);
+      }
+
+      speedLevelRef.current = speedInfo.speedLevel;
+      currentPitchRef.current = pitch;
+      pitchDurationRef.current = speedInfo.actualDuration;
+      pitchStartTimeRef.current = performance.now();
+      isSwungRef.current = false;
+      batterStateRef.current = 'READY';
+
+      gameStateRef.current = 'PITCHING';
+      setPitchToast(pitch);
+      syncUiState();
+
+      try {
+        soundFx?.playBaseballPitch?.();
+      } catch (audioErr) {
+        console.warn('Audio play error:', audioErr);
+      }
+    } catch (err) {
+      console.error('startNextPitch error:', err);
+      // Fallback: recover state machine
+      gameStateRef.current = 'PITCHING';
+      pitchStartTimeRef.current = performance.now();
+      pitchDurationRef.current = 2000;
+      isSwungRef.current = false;
+      syncUiState();
+    }
+  }, [syncUiState]);
+
+  // 3. Game Reset & Restart
+  const handleRestartGame = () => {
+    if (nextPitchTimeoutRef.current) clearTimeout(nextPitchTimeoutRef.current);
+    if (swingDisplayTimerRef.current) clearTimeout(swingDisplayTimerRef.current);
+
+    particleSystemRef.current.clear();
+    scoreRef.current = 0;
+    runsRef.current = 0;
+    hitsRef.current = 0;
+    homerunsRef.current = 0;
+    longestDistanceRef.current = 0;
+    comboRef.current = 0;
+    maxComboRef.current = 0;
+    ballsRef.current = 0;
+    strikesRef.current = 0;
+    outsRef.current = 0;
+    runnersRef.current = [false, false, false];
+    speedLevelRef.current = SPEED_LEVELS[0];
+    gameStateRef.current = 'IDLE';
+
+    setHitFeedback(null);
+    setSpeedUpAlert(null);
+    setShowHomerunBadge(false);
+    setIsSubmitted(false);
+    setPlayerName('');
+    syncUiState();
+
+    // Auto launch first pitch
+    setTimeout(() => {
+      startNextPitch();
+    }, 400);
+  };
+
+  // 4. Bat Swing Execution (Always checks live gameStateRef)
+  const handleSwing = useCallback(() => {
+    if (gameStateRef.current === 'GAME_OVER') return;
+
+    if (gameStateRef.current === 'IDLE') {
+      startNextPitch();
+      return;
+    }
+
+    if (gameStateRef.current !== 'PITCHING' || isSwungRef.current) return;
+
+    const now = performance.now();
+    const elapsed = now - pitchStartTimeRef.current;
+    const duration = pitchDurationRef.current;
+    const targetArrival = duration;
+
+    // Early swing safety buffer (ignore accidental clicks within 300ms of pitch release)
+    if (elapsed < 300) {
+      haptics.light();
+      batterStateRef.current = 'SWING';
+      if (swingDisplayTimerRef.current) clearTimeout(swingDisplayTimerRef.current);
+      swingDisplayTimerRef.current = setTimeout(() => {
+        batterStateRef.current = 'READY';
+      }, 250);
+      return;
+    }
+
+    isSwungRef.current = true;
+    batterStateRef.current = 'SWING';
+
+    const pitch = currentPitchRef.current || PITCH_TYPES.FASTBALL;
+    const result = judgeSwing(elapsed, targetArrival, pitch, runnersRef.current, speedLevelRef.current);
+
+    // Revert batter swing sprite back to ready after 350ms
+    if (swingDisplayTimerRef.current) clearTimeout(swingDisplayTimerRef.current);
+    swingDisplayTimerRef.current = setTimeout(() => {
+      batterStateRef.current = 'READY';
+    }, 350);
+
+    // Handle Immediate Fly Out / Ground Out (Idea 2)
+    if (result.isOut) {
+      haptics.warning();
+      particleSystemRef.current.addHitSparks(HOME_PLATE_POS.x, HOME_PLATE_POS.y - 15, 18, '#E11D48');
+      const nextOuts = outsRef.current + 1;
+      strikesRef.current = 0;
+      outsRef.current = nextOuts;
+      comboRef.current = 0;
+
+      if (nextOuts >= 3) {
+        gameStateRef.current = 'GAME_OVER';
+        try { soundFx?.playPacmanGameOver?.(); } catch (e) {}
+        syncUiState();
+        return;
+      } else {
+        try { soundFx?.playBaseballSwingMiss?.(); } catch (e) {}
+        setHitFeedback({
+          label: result.label,
+          desc: `${result.timingFeedback} (아웃 ${nextOuts}/3)`,
+          color: result.color
+        });
+      }
+
+      gameStateRef.current = 'MISS_ANIMATION';
+      syncUiState();
+
+      nextPitchTimeoutRef.current = setTimeout(() => {
+        setHitFeedback(null);
+        startNextPitch();
+      }, 1400);
+      return;
+    }
+
+    // Handle Strike / Miss
+    if (result.bases === 0 && result.label.includes('STRIKE')) {
+      try { soundFx?.playBaseballSwingMiss?.(); } catch (e) {}
+      setHitFeedback({
+        label: 'STRIKE! ❌',
+        desc: result.timingFeedback,
+        color: '#EF4444'
+      });
+
+      const nextStrikes = strikesRef.current + 1;
+      if (nextStrikes >= 3) {
+        const nextOuts = outsRef.current + 1;
+        strikesRef.current = 0;
+        outsRef.current = nextOuts;
+        comboRef.current = 0;
+
+        if (nextOuts >= 3) {
+          gameStateRef.current = 'GAME_OVER';
+          try { soundFx?.playPacmanGameOver?.(); } catch (e) {}
+          syncUiState();
+          return;
+        } else {
+          setHitFeedback({
+            label: 'OUT! 🚫',
+            desc: `삼진 아웃! (아웃 ${nextOuts}/3)`,
+            color: '#DC2626'
+          });
+        }
+      } else {
+        strikesRef.current = nextStrikes;
+      }
+
+      gameStateRef.current = 'MISS_ANIMATION';
+      syncUiState();
+
+      nextPitchTimeoutRef.current = setTimeout(() => {
+        setHitFeedback(null);
+        startNextPitch();
+      }, 1200);
+      return;
+    }
+
+    // Handle Foul
+    if (result.bases === 0 && result.label.includes('FOUL')) {
+      try { soundFx?.playBaseballHit?.(); } catch (e) {}
+      setHitFeedback({
+        label: 'FOUL ⚠️',
+        desc: result.timingFeedback,
+        color: '#F97316'
+      });
+
+      if (strikesRef.current < 2) {
+        strikesRef.current += 1;
+      }
+      comboRef.current = 0;
+
+      gameStateRef.current = 'MISS_ANIMATION';
+      syncUiState();
+
+      nextPitchTimeoutRef.current = setTimeout(() => {
+        setHitFeedback(null);
+        startNextPitch();
+      }, 1200);
+      return;
+    }
+
+    // Handle Successful Hit (Single, Double, Triple, Homerun, Grand Slam)
+    const isHomerun = result.bases >= 4;
+    if (isHomerun) {
+      haptics.heavy();
+      soundFx?.playBaseballHomerun?.();
+      soundFx?.playPacmanEatFruit?.();
+      particleSystemRef.current.addHomerunFireworks();
+      setShowHomerunBadge(true);
+      setTimeout(() => setShowHomerunBadge(false), 2200);
+    } else {
+      haptics.medium();
+      soundFx?.playBaseballHit?.();
+      particleSystemRef.current.addHitSparks(HOME_PLATE_POS.x, HOME_PLATE_POS.y - 15, 25, result.color);
+    }
+
+    // Advance Runners
+    const advanceResult = advanceRunners(runnersRef.current, result.bases);
+    runnersRef.current = advanceResult.newRunners;
+
+    // Calculate Scores & Bonuses
+    const nextCombo = comboRef.current + 1;
+    comboRef.current = nextCombo;
+    maxComboRef.current = Math.max(maxComboRef.current, nextCombo);
+    hitsRef.current += 1;
+    if (isHomerun) homerunsRef.current += 1;
+    if (result.distance > longestDistanceRef.current) longestDistanceRef.current = result.distance;
+
+    const comboBonus = nextCombo * 20;
+    const distanceBonus = result.distance > 100 ? Math.floor((result.distance - 100) * 1.5) : 0;
+    const runsScore = advanceResult.runsScored * 100;
+    const totalGained = result.baseScore + runsScore + comboBonus + distanceBonus;
+
+    scoreRef.current += totalGained;
+    runsRef.current += advanceResult.runsScored;
+    strikesRef.current = 0;
+
+    gameStateRef.current = 'HIT_ANIMATION';
+    syncUiState();
+
+    setHitFeedback({
+      label: result.label,
+      desc: result.timingFeedback,
+      distance: result.distance,
+      color: result.color,
+      points: totalGained
+    });
+
+    nextPitchTimeoutRef.current = setTimeout(() => {
+      setHitFeedback(null);
+      startNextPitch();
+    }, isHomerun ? 2000 : 1300);
+  }, [startNextPitch, syncUiState]);
+
+  // Keyboard Event Listener (Spacebar & Enter)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+        return;
+      }
+      if (e.code === 'Space' || e.key === 'Enter') {
+        e.preventDefault();
+        handleSwing();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSwing]);
+
+  // 5. Uninterrupted Main 3D Perspective Canvas Rendering Loop (Capped at 30FPS for 50% GPU Reduction)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const TARGET_FPS = 30;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS; // 33.33ms
+    let lastRenderTime = performance.now();
+
+    const render = (currentTime) => {
+      try {
+        const elapsed = currentTime - lastRenderTime;
+
+        if (elapsed >= FRAME_INTERVAL) {
+          lastRenderTime = currentTime - (elapsed % FRAME_INTERVAL);
+
+          ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+          // Get Current Theme based on Score
+          const curScore = scoreRef.current || 0;
+        let curTheme = BASEBALL_THEMES[0];
+        for (let i = BASEBALL_THEMES.length - 1; i >= 0; i--) {
+          if (curScore >= BASEBALL_THEMES[i].minScore) {
+            curTheme = BASEBALL_THEMES[i];
+            break;
+          }
+        }
+
+        // =========================================================================
+        // A. Draw 3D Perspective Stadium Background & Field with 5 Themes
+        // =========================================================================
+        if (bgImgRef.current) {
+          ctx.drawImage(bgImgRef.current, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+          // Atmospheric Theme Color Overlay
+          if (curTheme.id !== 'DAY') {
+            ctx.save();
+            if (curTheme.id === 'SUNSET') {
+              const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+              grad.addColorStop(0, 'rgba(249, 115, 22, 0.35)');
+              grad.addColorStop(0.5, 'rgba(180, 83, 9, 0.2)');
+              grad.addColorStop(1, 'rgba(0, 0, 0, 0.15)');
+              ctx.fillStyle = grad;
+            } else if (curTheme.id === 'NIGHT') {
+              const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+              grad.addColorStop(0, 'rgba(15, 23, 42, 0.65)');
+              grad.addColorStop(0.6, 'rgba(30, 27, 75, 0.4)');
+              grad.addColorStop(1, 'rgba(0, 0, 0, 0.25)');
+              ctx.fillStyle = grad;
+            } else if (curTheme.id === 'STORM') {
+              const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+              grad.addColorStop(0, 'rgba(39, 39, 42, 0.7)');
+              grad.addColorStop(0.5, 'rgba(24, 24, 27, 0.5)');
+              grad.addColorStop(1, 'rgba(15, 118, 110, 0.2)');
+              ctx.fillStyle = grad;
+            } else if (curTheme.id === 'CHAMPION') {
+              const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+              grad.addColorStop(0, 'rgba(88, 28, 135, 0.5)');
+              grad.addColorStop(0.5, 'rgba(131, 24, 67, 0.3)');
+              grad.addColorStop(1, 'rgba(234, 179, 8, 0.15)');
+              ctx.fillStyle = grad;
+            }
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            ctx.restore();
+          }
+        } else {
+          // Dynamic Theme Procedural Sky & Field
+          const skyGrad = ctx.createLinearGradient(0, 0, 0, 180);
+          skyGrad.addColorStop(0, curTheme.skyTop);
+          skyGrad.addColorStop(1, curTheme.skyBottom);
+          ctx.fillStyle = skyGrad;
+          ctx.fillRect(0, 0, CANVAS_WIDTH, 180);
+
+          // Grass Field
+          ctx.fillStyle = curTheme.grassLight;
+          ctx.fillRect(0, 180, CANVAS_WIDTH, CANVAS_HEIGHT - 180);
+
+          // Infield Dirt Area
+          ctx.save();
+          ctx.fillStyle = curTheme.dirt;
+          ctx.beginPath();
+          ctx.moveTo(PITCHER_POS.x, PITCHER_POS.y - 10);
+          ctx.lineTo(820, CANVAS_HEIGHT);
+          ctx.lineTo(140, CANVAS_HEIGHT);
+          ctx.closePath();
+          ctx.fill();
+
+          // 3D Foul Lines
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.moveTo(HOME_PLATE_POS.x, HOME_PLATE_POS.y);
+          ctx.lineTo(80, 240);
+          ctx.moveTo(HOME_PLATE_POS.x, HOME_PLATE_POS.y);
+          ctx.lineTo(880, 240);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Stadium Lighting Pillars at Night / Storm / Champion
+        if (curTheme.id === 'NIGHT' || curTheme.id === 'STORM' || curTheme.id === 'CHAMPION') {
+          ctx.save();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+          // Left Floodlight Cone
+          ctx.beginPath();
+          ctx.moveTo(60, 40);
+          ctx.lineTo(0, CANVAS_HEIGHT);
+          ctx.lineTo(400, CANVAS_HEIGHT);
+          ctx.closePath();
+          ctx.fill();
+          // Right Floodlight Cone
+          ctx.beginPath();
+          ctx.moveTo(CANVAS_WIDTH - 60, 40);
+          ctx.lineTo(CANVAS_WIDTH, CANVAS_HEIGHT);
+          ctx.lineTo(CANVAS_WIDTH - 400, CANVAS_HEIGHT);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Home Plate Sweet Spot Target Indicator
+        ctx.save();
+        ctx.fillStyle = '#3B82F6';
+        ctx.beginPath();
+        ctx.arc(HOME_PLATE_POS.x, HOME_PLATE_POS.y + 2, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⚾', HOME_PLATE_POS.x, HOME_PLATE_POS.y + 3);
+        ctx.restore();
+
+        // =========================================================================
+        // B. Draw Distant Pitcher (Proportioned Cute Size)
+        // =========================================================================
+        if (pitcherSpriteRef.current) {
+          const pW = 85;
+          const pH = 85;
+          const pX = PITCHER_POS.x - pW / 2;
+          const pY = PITCHER_POS.y - pH + 12;
+
+          ctx.save();
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+          ctx.beginPath();
+          ctx.ellipse(PITCHER_POS.x, PITCHER_POS.y + 12, 16, 6, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          ctx.drawImage(pitcherSpriteRef.current, pX, pY, pW, pH);
+        }
+
+        // =========================================================================
+        // C. Draw 3D Ball & Dynamic Shadow in Flight
+        // =========================================================================
+        if (gameStateRef.current === 'PITCHING' && currentPitchRef.current) {
+          const now = performance.now();
+          const elapsed = now - pitchStartTimeRef.current;
+          const duration = Math.max(500, pitchDurationRef.current || 2000);
+
+          // Auto Miss if ball travels past plate
+          if (elapsed > duration + 200 && !isSwungRef.current) {
+            isSwungRef.current = true;
+
+            // Idea 5: If it was a Bad Ball (유인구), letting it pass awards a BALL!
+            if (currentPitchRef.current.isBadBall) {
+              const nextBalls = ballsRef.current + 1;
+              if (nextBalls >= 4) {
+                // Four-Ball Walk!
+                ballsRef.current = 0;
+                const advanceResult = advanceRunners(runnersRef.current, 1);
+                runnersRef.current = advanceResult.newRunners;
+                runsRef.current += advanceResult.runsScored;
+                scoreRef.current += 100 + (advanceResult.runsScored * 100);
+
+                try { soundFx?.playPacmanEatGhost?.(); } catch (e) {}
+                setHitFeedback({
+                  label: 'FOUR BALL! 🚶',
+                  desc: '4볼 달성! 밀어내기 1루 진루 & 득점 성공!',
+                  color: '#10B981',
+                  points: 100
+                });
+              } else {
+                ballsRef.current = nextBalls;
+                try { soundFx?.playPacmanWaka?.(); } catch (e) {}
+                setHitFeedback({
+                  label: 'BALL! 👁️',
+                  desc: `침착한 선구안! 볼 카운트 (${nextBalls}/4)`,
+                  color: '#10B981'
+                });
+              }
+
+              gameStateRef.current = 'MISS_ANIMATION';
+              syncUiState();
+
+              nextPitchTimeoutRef.current = setTimeout(() => {
+                setHitFeedback(null);
+                startNextPitch();
+              }, 1200);
+            } else {
+              // Normal Looking Strike
+              try { soundFx?.playBaseballSwingMiss?.(); } catch (e) {}
+              setHitFeedback({
+                label: 'STRIKE! ❌',
+                desc: '루킹 스트라이크! 공을 지켜보았습니다.',
+                color: '#EF4444'
+              });
+
+              const nextStrikes = strikesRef.current + 1;
+              if (nextStrikes >= 3) {
+                const nextOuts = outsRef.current + 1;
+                strikesRef.current = 0;
+                outsRef.current = nextOuts;
+                comboRef.current = 0;
+
+                if (nextOuts >= 3) {
+                  gameStateRef.current = 'GAME_OVER';
+                  try { soundFx?.playPacmanGameOver?.(); } catch (e) {}
+                  syncUiState();
+                }
+              } else {
+                strikesRef.current = nextStrikes;
+              }
+
+              if (gameStateRef.current !== 'GAME_OVER') {
+                gameStateRef.current = 'MISS_ANIMATION';
+                syncUiState();
+                nextPitchTimeoutRef.current = setTimeout(() => {
+                  setHitFeedback(null);
+                  startNextPitch();
+                }, 1200);
+              }
+            }
+          } else {
+            const ball = calculateBallState(currentPitchRef.current, elapsed, duration);
+
+            if (currentPitchRef.current.hasFlameEffect) {
+              particleSystemRef.current.addFireballTrail(ball.x, ball.y);
+            }
+
+            // 1. Sweet Spot Converging Timing Ring
+            if (ball.timingRingRadius > 2 && ball.opacity > 0.2) {
+              ctx.save();
+              ctx.strokeStyle = ball.isAtSweetSpot ? '#FBBF24' : 'rgba(251, 191, 36, 0.6)';
+              ctx.lineWidth = ball.isAtSweetSpot ? 3.5 : 2;
+              ctx.beginPath();
+              ctx.arc(HOME_PLATE_POS.x, HOME_PLATE_POS.y + 2, Math.max(1, 18 + ball.timingRingRadius), 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.restore();
+            }
+
+            // 2. Draw 3D Ground Shadow on Field
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, Math.min(1, 0.4 * ball.opacity));
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.ellipse(ball.shadowX, ball.shadowY, Math.max(1, ball.shadowRadiusX), Math.max(1, ball.shadowRadiusY), 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // 3. Draw 3D Ball with Glowing Atmosphere
+            ctx.save();
+            ctx.globalAlpha = Math.max(0.1, Math.min(1, ball.opacity));
+
+            if (currentPitchRef.current.id !== 'FASTBALL') {
+              ctx.shadowColor = currentPitchRef.current.color;
+              ctx.shadowBlur = 12;
+            }
+
+            ctx.fillStyle = currentPitchRef.current.color || '#FFFFFF';
+            ctx.strokeStyle = '#1E293B';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, Math.max(4, ball.radius), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#EF4444';
+            ctx.lineWidth = Math.max(1, ball.radius * 0.1);
+            ctx.beginPath();
+            ctx.arc(ball.x - ball.radius * 0.35, ball.y, Math.max(1, ball.radius * 0.75), -0.6, 0.6);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(ball.x + ball.radius * 0.35, ball.y, Math.max(1, ball.radius * 0.75), Math.PI - 0.6, Math.PI + 0.6);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+
+        // =========================================================================
+        // D. Draw Batter in Left Batter's Box
+        // =========================================================================
+        const activeBatterSprite = batterStateRef.current === 'SWING'
+          ? batterSwingSpriteRef.current
+          : batterReadySpriteRef.current;
+
+        if (activeBatterSprite) {
+          const bW = 185;
+          const bH = 185;
+          const bX = BATTER_POS.x - bW / 2;
+          const bY = BATTER_POS.y - bH / 2;
+
+          ctx.save();
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+          ctx.beginPath();
+          ctx.ellipse(BATTER_POS.x, BATTER_POS.y + bH * 0.38, bW * 0.32, 14, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          ctx.drawImage(activeBatterSprite, bX, bY, bW, bH);
+
+          if (batterStateRef.current === 'SWING') {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(BATTER_POS.x + 30, BATTER_POS.y - 10, 110, -0.3, 0.8);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+
+        // =========================================================================
+        // E. Update & Draw Particles
+        // =========================================================================
+        particleSystemRef.current.update();
+        particleSystemRef.current.render(ctx);
+        }
+      } catch (err) {
+        console.error('Canvas render loop caught exception:', err);
+      } finally {
+        animFrameRef.current = requestAnimationFrame(render);
+      }
+    };
+
+    lastRenderTime = performance.now();
+    animFrameRef.current = requestAnimationFrame(render);
+
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [syncUiState, startNextPitch]);
+
+  // 6. Submit High Score to Cloud DB (Strict Rule: score > 100 & placeholder "예: 홍길동")
+  
+
+  return (
+    <div className="baseball-game-container">
+      {/* 1. Top Stadium Scoreboard HUD */}
+      <div className="baseball-scoreboard-hud">
+        {/* Left: Score & Combo */}
+        <div className="scoreboard-left">
+          <div className="scoreboard-score-card">
+            <span className="scoreboard-label">SCORE</span>
+            <span className="scoreboard-value-score">{score.toLocaleString()}</span>
+          </div>
+          {combo > 1 && (
+            <div className="scoreboard-combo-pill">
+              <Flame style={{ width: '13px', height: '13px' }} />
+              <span>{combo} COMBO!</span>
+            </div>
+          )}
+        </div>
+
+        {/* Center: Diamond Bases & Count Meters */}
+        <div className="scoreboard-center">
+          <div className="mini-diamond-box" title="주자 다이아몬드 (1루, 2루, 3루)">
+            <div className="mini-diamond-outline" />
+            <div className={`base-dot b-second ${runners[1] ? 'active' : ''}`} />
+            <div className={`base-dot b-third ${runners[2] ? 'active' : ''}`} />
+            <div className={`base-dot b-first ${runners[0] ? 'active' : ''}`} />
+            <div className="base-dot b-home" />
+          </div>
+
+          <div className="count-meters-box">
+            <div className="count-row">
+              <span className="count-name" style={{ color: '#10B981' }}>B</span>
+              <div className="count-dots">
+                <div className={`count-lamp ball ${balls >= 1 ? 'on' : ''}`} />
+                <div className={`count-lamp ball ${balls >= 2 ? 'on' : ''}`} />
+                <div className={`count-lamp ball ${balls >= 3 ? 'on' : ''}`} />
+              </div>
+            </div>
+            <div className="count-row">
+              <span className="count-name" style={{ color: '#FBBF24' }}>S</span>
+              <div className="count-dots">
+                <div className={`count-lamp strike ${strikes >= 1 ? 'on' : ''}`} />
+                <div className={`count-lamp strike ${strikes >= 2 ? 'on' : ''}`} />
+              </div>
+            </div>
+            <div className="count-row">
+              <span className="count-name" style={{ color: '#EF4444' }}>O</span>
+              <div className="count-dots">
+                <div className={`count-lamp out ${outs >= 1 ? 'on' : ''}`} />
+                <div className={`count-lamp out ${outs >= 2 ? 'on' : ''}`} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Stats & Game Controls */}
+        <div className="scoreboard-right">
+          {/* Dynamic Theme Badge */}
+          {(() => {
+            let curTheme = BASEBALL_THEMES[0];
+            for (let i = BASEBALL_THEMES.length - 1; i >= 0; i--) {
+              if (score >= BASEBALL_THEMES[i].minScore) {
+                curTheme = BASEBALL_THEMES[i];
+                break;
+              }
+            }
+            return (
+              <div
+                className="hud-stat-pill"
+                title={`경기장 테마: ${curTheme.name}`}
+                style={{ borderLeft: `3px solid ${curTheme.accentColor}` }}
+              >
+                <span className="scoreboard-label" style={{ color: curTheme.accentColor }}>STAGE</span>
+                <span className="hud-stat-num" style={{ color: '#F8FAFC', fontSize: '11px', fontWeight: 800 }}>
+                  {curTheme.name.split(' ')[0]}
+                </span>
+              </div>
+            );
+          })()}
+
+          {/* Dynamic Speed Level Tier Badge */}
+          <div
+            className="hud-stat-pill speed-level-pill"
+            title={`스피드 단계: Lv.${speedLevel.level} ${speedLevel.name} (${speedLevel.speedMultiplier}x 속도)`}
+            style={{ borderLeft: `3px solid ${speedLevel.color}` }}
+          >
+            <span className="scoreboard-label" style={{ color: speedLevel.color }}>SPEED</span>
+            <span className="hud-stat-num" style={{ color: speedLevel.color, fontSize: '13px', fontWeight: 900 }}>
+              Lv.{speedLevel.level}
+            </span>
+          </div>
+
+          <div className="hud-stat-pill" title="홈런 개수">
+            <span className="scoreboard-label">HOMERUN</span>
+            <span className="hud-stat-num">{homeruns}</span>
+          </div>
+          <div className="hud-stat-pill" title="홈인 득점 (Runs)">
+            <span className="scoreboard-label">RUNS</span>
+            <span className="hud-stat-num">{runs}</span>
+          </div>
+
+          <button
+            className="hud-ctrl-btn"
+            onClick={toggleSound}
+            title={isMuted ? '음소거 해제' : '음소거'}
+          >
+            {isMuted ? (
+              <VolumeX style={{ width: '16px', height: '16px', color: '#F87171' }} />
+            ) : (
+              <Volume2 style={{ width: '16px', height: '16px', color: '#34D399' }} />
+            )}
+          </button>
+
+          <button
+            className="hud-ctrl-btn"
+            onClick={() => setIsHowToPlayOpen(true)}
+            title="게임 방법 & 룰북"
+          >
+            <HelpCircle style={{ width: '16px', height: '16px' }} />
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Main Stadium Canvas Viewport */}
+      <div className="baseball-canvas-wrapper" onClick={handleSwing}>
+        <canvas
+          ref={canvasRef}
+          width={CANVAS_WIDTH}
+          height={CANVAS_HEIGHT}
+          className="baseball-main-canvas"
+        />
+
+        {/* Pitch Name Alert Toast */}
+        {gameState === 'PITCHING' && pitchToast && (
+          <div className="pitch-name-toast">
+            <Zap style={{ width: '14px', height: '14px', color: pitchToast.color }} />
+            <span>{pitchToast.name}</span>
+          </div>
+        )}
+
+        {/* Speed Up Level Up Toast Alert */}
+        {speedUpAlert && (
+          <div className="speed-up-toast-overlay">
+            <div className="speed-up-toast-card" style={{ borderColor: speedUpAlert.color }}>
+              <Zap style={{ width: '20px', height: '20px', color: speedUpAlert.color }} />
+              <div className="speed-up-toast-text">
+                <span className="speed-up-title">⚡ SPEED UP!</span>
+                <span className="speed-up-sub" style={{ color: speedUpAlert.color }}>
+                  Lv.{speedUpAlert.level} {speedUpAlert.name} 진입 ({speedUpAlert.speedMultiplier}x 속도)
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hit Result Feedback Popup */}
+        {hitFeedback && (
+          <div className="hit-feedback-popup">
+            <h1 className="hit-feedback-title" style={{ color: hitFeedback.color }}>
+              {hitFeedback.label}
+            </h1>
+            <div className="hit-feedback-desc">{hitFeedback.desc}</div>
+            {hitFeedback.distance && (
+              <div className="hit-feedback-distance">
+                비거리 {hitFeedback.distance}m (+{hitFeedback.points}점)
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Homerun Badge Overlay */}
+        {showHomerunBadge && (
+          <div className="homerun-badge-overlay">
+            <img
+              src={getAsset('homerun_badge.webp')}
+              alt="Homerun Badge"
+              className="homerun-badge-img"
+            />
+          </div>
+        )}
+
+        {/* Game Over Modal Screen */}
+        {gameState === 'GAME_OVER' && (
+          <div className="baseball-gameover-overlay" onClick={(e) => e.stopPropagation()}>
+            <div className="baseball-gameover-card">
+              <div className="gameover-badge">3 OUTS · GAME OVER</div>
+              <h2 className="gameover-title">⚾ 경기 종료!</h2>
+
+              <div className="gameover-score-wrap">
+                <span className="gameover-score-label">최종 획득 점수</span>
+                <div className="gameover-score-val">{score.toLocaleString()}점</div>
+              </div>
+
+              {/* Game Stats Matrix */}
+              <div className="gameover-stats-grid">
+                <div className="stat-box">
+                  <span className="stat-box-lbl">홈런</span>
+                  <span className="stat-box-val">{homeruns}개</span>
+                </div>
+                <div className="stat-box">
+                  <span className="stat-box-lbl">총 안타</span>
+                  <span className="stat-box-val">{hits}개</span>
+                </div>
+                <div className="stat-box">
+                  <span className="stat-box-lbl">최장 비거리</span>
+                  <span className="stat-box-val">{longestDistance}m</span>
+                </div>
+              </div>
+
+              {/* Strict Rule: Score Registration Form only if score > 100, with placeholder "예: 홍길동" */}
+              {score > 100 ? (
+                <div className="leaderboard-register-box">
+                  <div className="leaderboard-box-title">
+                    <Trophy style={{ width: '15px', height: '15px' }} />
+                    <span>도촌초 명예의 전당 점수 등록</span>
+                  </div>
+
+                  {isSubmitted ? (
+                    <div style={{ color: '#34D399', fontSize: '13px', fontWeight: 800, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                      <CheckCircle2 style={{ width: '16px', height: '16px' }} />
+                      <span>명예의 전당 등록이 완료되었습니다!</span>
+                    </div>
+                  ) : (
+                    <form className="leaderboard-form" onSubmit={handleSubmitScore}>
+                      <input
+                        type="text"
+                        className="leaderboard-input"
+                        placeholder="예: 홍길동"
+                        value={playerName}
+                        onChange={(e) => setPlayerName(e.target.value)}
+                        maxLength={12}
+                        required
+                        disabled={isSubmitting}
+                      />
+                      <button
+                        type="submit"
+                        className="leaderboard-submit-btn"
+                        disabled={isSubmitting || !playerName.trim()}
+                      >
+                        {isSubmitting ? '등록 중...' : '등록'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              ) : (
+                <div className="low-score-notice">
+                  💡 100점을 초과하여 득점하면 도촌초 명예의 전당에 이름을 남길 수 있습니다!
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="gameover-btn-row">
+                <button className="retry-action-btn" onClick={handleRestartGame}>
+                  <RotateCcw style={{ width: '16px', height: '16px' }} />
+                  <span>다시 도전하기</span>
+                </button>
+                {onScoreSubmitted && (
+                  <button className="hall-action-btn" onClick={onScoreSubmitted}>
+                    <Trophy style={{ width: '16px', height: '16px', color: '#FBBF24' }} />
+                    <span>명예의 전당</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Bottom Action Bar (Mobile Touch Assist & Desktop Hint) */}
+      <div className="baseball-bottom-controls">
+        <button
+          className="mobile-swing-btn"
+          onClick={handleSwing}
+          title="배트 휘두르기 (스페이스바 또는 화면 터치)"
+        >
+          <Zap style={{ width: '20px', height: '20px', color: '#FBBF24' }} />
+          <span>{gameState === 'IDLE' ? '⚾ 게임 시작 (타석 입장)' : '⚡ 배트 휘두르기 (SWING)'}</span>
+        </button>
+        <div className="desktop-key-hint">
+          <span>PC 조작:</span>
+          <kbd>Spacebar</kbd>
+          <span>또는</span>
+          <kbd>Enter</kbd>
+          <span>/ 마우스 클릭</span>
+        </div>
+      </div>
+
+      {/* 4. How To Play Modal */}
+      <BaseballHowToPlayModal
+        isOpen={isHowToPlayOpen}
+        onClose={() => setIsHowToPlayOpen(false)}
+      />
+    </div>
+  );
+}

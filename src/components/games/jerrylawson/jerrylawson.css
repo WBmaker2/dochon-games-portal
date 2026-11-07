@@ -1,0 +1,696 @@
+/* Jerry Lawson 8-Bit Cartridge Game & Level Editor Styles */
+
+.jerry-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  user-select: none;
+  font-family: 'Pretendard', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* 1. Retro Console Bezel & Screen Wrapper */
+.jerry-console-frame {
+  position: relative;
+  width: 100%;
+  background: #1e1b18;
+  background-image: 
+    radial-gradient(ellipse at 50% 0%, rgba(255, 184, 0, 0.15), transparent 70%),
+    linear-gradient(180deg, #2b2620 0%, #151311 100%);
+  border: 4px solid #4a3e35;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.7),
+    inset 0 2px 4px rgba(255, 255, 255, 0.15),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 2. Top HUD Bar */
+.jerry-hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(10, 15, 26, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 184, 0, 0.3);
+  border-radius: 12px;
+  padding: 8px 16px;
+  color: #fff;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jerry-hud-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.jerry-hud-val {
+  font-family: monospace;
+  font-size: 15px;
+  color: #ffd700;
+}
+
+.jerry-hud-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.jerry-hud-btn:hover {
+  background: rgba(255, 184, 0, 0.2);
+  border-color: rgba(255, 184, 0, 0.5);
+  color: #ffb800;
+  transform: translateY(-1px);
+}
+
+.jerry-hud-btn.active {
+  background: #ffb800;
+  color: #111827;
+  border-color: #ffd700;
+  font-weight: 800;
+}
+
+/* 3. Screen Box & Canvas */
+.jerry-screen-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 800 / 480;
+  background: #000;
+  border: 3px solid #111;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.9);
+}
+
+.jerry-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  cursor: crosshair;
+}
+
+/* 4. Overlays */
+.jerry-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 7, 15, 0.85);
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  z-index: 20;
+}
+
+.jerry-title-card {
+  margin-bottom: 20px;
+}
+
+.jerry-title-text {
+  font-size: 26px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #ffd700, #ff8c00);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+
+.jerry-subtitle-text {
+  font-size: 13px;
+  color: #cbd5e1;
+  max-width: 460px;
+  line-height: 1.5;
+}
+
+/* 5. Generic Buttons */
+.jerry-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #ffb800, #ff8c00);
+  color: #111827;
+  font-weight: 800;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(255, 184, 0, 0.35);
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.jerry-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 184, 0, 0.5);
+  filter: brightness(1.1);
+}
+
+.jerry-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+}
+
+.jerry-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+
+/* 6. Score Submission Form */
+.jerry-submit-form {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 184, 0, 0.4);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-top: 14px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.jerry-submit-input-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.jerry-submit-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 184, 0, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.jerry-submit-input:focus {
+  border-color: #ffb800;
+  box-shadow: 0 0 0 2px rgba(255, 184, 0, 0.2);
+}
+
+/* 7. Level Editor Toolbar */
+.jerry-editor-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(0, 173, 181, 0.35);
+  border-radius: 12px;
+  padding: 8px 14px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jerry-palette-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.jerry-tool-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.jerry-tool-btn:hover {
+  background: rgba(0, 173, 181, 0.2);
+  border-color: rgba(0, 173, 181, 0.4);
+  color: #00adb5;
+}
+
+.jerry-tool-btn.selected {
+  background: #00adb5;
+  color: #000;
+  font-weight: 800;
+  border-color: #00fff5;
+  box-shadow: 0 0 10px rgba(0, 173, 181, 0.5);
+}
+
+/* 8. Virtual Controls for Mobile/Touch (Left-hand Move, Center Guide, Right-hand Jump) */
+.jerry-controls-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  margin-top: 8px;
+  box-sizing: border-box;
+  gap: 12px;
+}
+
+.jerry-virtual-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jerry-controls-guide {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  flex: 1;
+}
+
+.jerry-controls-guide kbd {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: monospace;
+  color: #ffb800;
+}
+
+.jerry-virtual-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jerry-vbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  transition: all 0.15s ease;
+}
+
+.jerry-vbtn:hover {
+  background: rgba(255, 184, 0, 0.2);
+  border-color: rgba(255, 184, 0, 0.5);
+  color: #ffd700;
+}
+
+.jerry-vbtn:active {
+  background: rgba(255, 184, 0, 0.5);
+  border-color: #ffd700;
+  transform: scale(0.92);
+}
+
+.jerry-vbtn-jump {
+  background: linear-gradient(135deg, rgba(255, 184, 0, 0.25) 0%, rgba(255, 140, 0, 0.35) 100%);
+  border-color: rgba(255, 184, 0, 0.6);
+  color: #ffd700;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.jerry-vbtn-jump:hover {
+  background: linear-gradient(135deg, rgba(255, 184, 0, 0.45) 0%, rgba(255, 140, 0, 0.55) 100%);
+  border-color: #ffd700;
+  box-shadow: 0 0 14px rgba(255, 184, 0, 0.4);
+}
+
+.jerry-vbtn-jump:active {
+  background: linear-gradient(135deg, #ffb800 0%, #ff8c00 100%);
+  color: #0f172a;
+}
+
+@media (max-width: 600px) {
+  .jerry-controls-bar {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  .jerry-controls-guide {
+    order: 3;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .jerry-virtual-left {
+    order: 1;
+  }
+  .jerry-virtual-right {
+    order: 2;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* =========================================================================
+   9. Jerry Lawson How-To-Play & Story Modal (Responsive Floating Overlay)
+   ========================================================================= */
+.jerry-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(5, 8, 18, 0.88);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  animation: jerryModalFadeIn 0.25s ease-out forwards;
+}
+
+.jerry-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 660px;
+  max-height: 88vh;
+  background: #0f172a;
+  background-image: radial-gradient(circle at 50% 0%, rgba(255, 184, 0, 0.12), transparent 70%);
+  border: 2px solid #ffb800;
+  border-radius: 22px;
+  box-shadow: 
+    0 25px 60px rgba(0, 0, 0, 0.85),
+    0 0 35px rgba(255, 184, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  animation: jerryModalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.jerry-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  background: linear-gradient(135deg, #2b1c0e 0%, #151d30 100%);
+  border-bottom: 1px solid rgba(255, 184, 0, 0.35);
+  box-sizing: border-box;
+}
+
+.jerry-modal-title-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.jerry-modal-icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(255, 184, 0, 0.15);
+  border: 1.5px solid rgba(255, 184, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 0 12px rgba(255, 184, 0, 0.25);
+}
+
+.jerry-modal-title {
+  font-size: 17px;
+  font-weight: 900;
+  color: #ffd700;
+  margin: 0;
+  letter-spacing: -0.3px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.jerry-modal-subtitle {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 2px 0 0 0;
+}
+
+.jerry-modal-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.jerry-modal-close-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #ef4444;
+  transform: rotate(90deg);
+}
+
+.jerry-modal-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.6;
+  box-sizing: border-box;
+}
+
+.jerry-cutscene-wrap {
+  border-radius: 14px;
+  border: 1.5px solid rgba(255, 184, 0, 0.4);
+  overflow: hidden;
+  background: #080d1a;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+}
+
+.jerry-cutscene-img {
+  width: 100%;
+  height: 170px;
+  object-fit: cover;
+  display: block;
+}
+
+.jerry-cutscene-caption {
+  padding: 12px 16px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9) 0%, #080d1a 100%);
+}
+
+.jerry-cutscene-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffd700;
+  margin-bottom: 4px;
+}
+
+.jerry-cutscene-desc {
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.jerry-guide-section {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.jerry-guide-section.editor-theme {
+  background: linear-gradient(135deg, rgba(0, 173, 181, 0.1) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border-color: rgba(0, 173, 181, 0.35);
+}
+
+.jerry-guide-section.honor-theme {
+  background: linear-gradient(135deg, rgba(255, 184, 0, 0.1) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border-color: rgba(255, 184, 0, 0.35);
+}
+
+.jerry-guide-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffd700;
+  margin: 0 0 10px 0;
+}
+
+.jerry-guide-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 540px) {
+  .jerry-guide-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.jerry-guide-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.jerry-kbd {
+  font-family: monospace;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 184, 0, 0.4);
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: #ffd700;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.jerry-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.jerry-item-row:last-child {
+  margin-bottom: 0;
+}
+
+.jerry-item-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.jerry-item-info strong {
+  color: #f1f5f9;
+  font-size: 12px;
+}
+
+.jerry-item-info p {
+  color: #94a3b8;
+  font-size: 11px;
+  margin: 2px 0 0 0;
+}
+
+.jerry-pills-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.jerry-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  color: #cbd5e1;
+}
+
+.jerry-modal-footer {
+  padding: 14px 22px;
+  background: #080d1a;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: flex-end;
+  box-sizing: border-box;
+}
+
+.jerry-modal-confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background: linear-gradient(135deg, #ffb800 0%, #ff8c00 100%);
+  color: #0f172a;
+  font-weight: 900;
+  font-size: 14px;
+  border-radius: 12px;
+  border: 1px solid #ffd700;
+  cursor: pointer;
+  box-shadow: 
+    0 4px 15px rgba(255, 184, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.jerry-modal-confirm-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 25px rgba(255, 184, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  filter: brightness(1.1);
+}
+
+.jerry-modal-confirm-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(255, 184, 0, 0.4);
+}
+
+@keyframes jerryModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes jerryModalPopIn {
+  from { opacity: 0; transform: scale(0.92) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
