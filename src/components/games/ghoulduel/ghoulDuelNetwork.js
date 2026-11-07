@@ -5,14 +5,46 @@
 
 import { FirebaseSignaling } from '../../../utils/firebaseSignaling';
 
-// Robust Multi-tier ICE Servers: High-availability STUN
+// Robust Multi-tier ICE Servers: Google, Cloudflare, Twilio STUN + Metered Ports 80/443 TURN
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
   { urls: 'stun:stun4.l.google.com:19302' },
-  { urls: 'stun:stun.cloudflare.com:3478' }
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+  { urls: 'stun:stun.relay.metered.ca:80' },
+  {
+    urls: 'turn:global.relay.metered.ca:80',
+    username: 'e8dd65b92f3b1e1ae3a37c20',
+    credential: 'gVNgSOl87pwvCYLu'
+  },
+  {
+    urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+    username: 'e8dd65b92f3b1e1ae3a37c20',
+    credential: 'gVNgSOl87pwvCYLu'
+  },
+  {
+    urls: 'turn:global.relay.metered.ca:443',
+    username: 'e8dd65b92f3b1e1ae3a37c20',
+    credential: 'gVNgSOl87pwvCYLu'
+  },
+  {
+    urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+    username: 'e8dd65b92f3b1e1ae3a37c20',
+    credential: 'gVNgSOl87pwvCYLu'
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelaypublic',
+    credential: 'openrelaypublic'
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelaypublic',
+    credential: 'openrelaypublic'
+  }
 ];
 
 const RTC_CONFIG = {
@@ -21,7 +53,7 @@ const RTC_CONFIG = {
 };
 
 const CONNECTION_TIMEOUT_MS = 14000; // 14s total timeout limit
-const P2P_FALLBACK_TIMEOUT_MS = 3800; // 3.8s before switching to Relay Fallback
+const P2P_FALLBACK_TIMEOUT_MS = 4000; // 4s before switching to Relay Fallback
 const RELAY_THROTTLE_MS = 100; // 10Hz throttle for relay in-game updates (300KB/match)
 
 export class GhoulDuelNetworkManager {
@@ -76,6 +108,14 @@ export class GhoulDuelNetworkManager {
   }
 
   // --- HOST: Create Room via Firebase RTDB Signaling ---
+  // --- Host heartbeat watchdog (guest side; covers relay mode): ---
+  _startGuestWatchdog(roomCode) {
+    this.signaling.startHostWatchdog(roomCode, () => {
+      this._emitStatus('방장과의 연결이 끊어졌습니다. 대기실로 돌아갑니다.');
+      if (this.onDisconnect) this.onDisconnect('방장과의 연결이 끊어졌습니다.');
+    });
+  }
+
   async createRoom(numericCode, playerName, team = 'green') {
     this.disconnect();
 
@@ -385,6 +425,7 @@ export class GhoulDuelNetworkManager {
               this._emitStatus('🎉 대기실 입장 완료! (안전 릴레이 모드)');
               if (this.onLobbyUpdate) this.onLobbyUpdate(this.lobbyPlayers);
               settle('resolve', cleanCode);
+                  this._startGuestWatchdog(cleanCode);
             } else {
               const errorMsg = hostData.message || '방 입장이 거부되었습니다.';
               settle('reject', new Error(errorMsg));
@@ -455,6 +496,7 @@ export class GhoulDuelNetworkManager {
 
                 this.signaling.cleanupGuestSignaling(cleanCode, guestId);
                 settle('resolve', cleanCode);
+                  this._startGuestWatchdog(cleanCode);
               } else {
                 settle('reject', new Error(data.message || '방 입장이 거부되었습니다.'));
               }
@@ -643,6 +685,7 @@ export class GhoulDuelNetworkManager {
 
   // --- DISCONNECT & CLEANUP ---
   disconnect() {
+    this.signaling.stopHostWatchdog();
     if (this.isHost && this.roomCode) {
       this.signaling.cleanupRoom(this.roomCode);
     } else if (this.roomCode && this.myPeerId) {

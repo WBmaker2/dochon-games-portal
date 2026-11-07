@@ -23,9 +23,10 @@ import {
   clampToPanArena,
   generateRandomItem
 } from './popcornLogic';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import PopcornHowToPlayModal from './PopcornHowToPlayModal';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import './popcorn.css';
 import {
   Volume2,
@@ -52,6 +53,17 @@ export default function PopcornGame({ onScoreSubmitted }) {
   const [selectedClass, setSelectedClass] = useState(PLAYER_CLASSES.KNIGHT);
   const [gameState, setGameState] = useState('select'); // 'select' | 'playing' | 'paused' | 'gameover' | 'victory'
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = soundManager;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // HUD & Game Metrics
@@ -66,13 +78,12 @@ export default function PopcornGame({ onScoreSubmitted }) {
   const [bossInfo, setBossInfo] = useState({ active: false, name: '', hp: 100, maxHp: 100 });
 
   // Leaderboard Submission
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const { isSubmitted: submitSuccess, setIsSubmitted: setSubmitSuccess, playerName, setPlayerName, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'popcorn', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // Refs for Game Loop & Physics
   const canvasRef = useRef(null);
   const animFrameRef = useRef(null);
+  const shakeRef = useRef(0);
   const keysPressed = useRef({});
   const isTouchDragging = useRef(false);
 
@@ -115,13 +126,13 @@ export default function PopcornGame({ onScoreSubmitted }) {
   useEffect(() => {
     soundManager.init();
     const assets = {
-      bgPan: getPopcornAsset('bg_pan.jpg'),
-      cornIdle: getPopcornAsset('corn_idle.jpg'),
-      cornShield: getPopcornAsset('corn_shield.jpg'),
-      cornHeal: getPopcornAsset('corn_heal.jpg'),
-      cornPopped: getPopcornAsset('corn_popped.jpg'),
-      bossButter: getPopcornAsset('boss_butter.jpg'),
-      bossFlame: getPopcornAsset('boss_flame.jpg')
+      bgPan: getPopcornAsset('bg_pan.webp'),
+      cornIdle: getPopcornAsset('corn_idle.webp'),
+      cornShield: getPopcornAsset('corn_shield.webp'),
+      cornHeal: getPopcornAsset('corn_heal.webp'),
+      cornPopped: getPopcornAsset('corn_popped.webp'),
+      bossButter: getPopcornAsset('boss_butter.webp'),
+      bossFlame: getPopcornAsset('boss_flame.webp')
     };
 
     Object.entries(assets).forEach(([key, src]) => {
@@ -663,23 +674,7 @@ export default function PopcornGame({ onScoreSubmitted }) {
   }, [gameState, selectedClass, stageIndex, maxHp]);
 
   // Handle Score Submission for Hall of Fame
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || score <= 100) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('popcorn', playerName.trim(), score);
-      setIsSubmitting(false);
-      setSubmitSuccess(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Failed to submit popcorn score:', err);
-      setIsSubmitting(false);
-    }
-  };
+  
 
   return (
     <div className="popcorn-container">
@@ -836,7 +831,7 @@ export default function PopcornGame({ onScoreSubmitted }) {
             <div className="popcorn-result-card">
               {gameState === 'gameover' ? (
                 <img
-                  src={getPopcornAsset('corn_popped.jpg')}
+                  src={getPopcornAsset('corn_popped.webp')}
                   alt="Popped Popcorn"
                   className="popcorn-result-avatar"
                 />

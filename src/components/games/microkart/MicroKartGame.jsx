@@ -20,8 +20,9 @@ import {
 } from './microKartConstants';
 import { renderTrack, getTrackConfig } from './microKartTrack';
 import MicroKartHowToPlayModal from './MicroKartHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Trophy, RotateCcw, Volume2, VolumeX, HelpCircle,
   Sparkles, Play, Users, Globe, Copy, Check, LogOut,
@@ -44,6 +45,17 @@ export default function MicroKartGame({ onScoreSubmitted }) {
   const [selectedSkin, setSelectedSkin] = useState('eraser');
   const [difficulty, setDifficulty] = useState('normal');
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = microKartAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   // Solo Mode Grand Prix (3-Stage Campaign) States
@@ -81,7 +93,7 @@ export default function MicroKartGame({ onScoreSubmitted }) {
 
   // Results & Leaderboard Submission State
   const [gameResult, setGameResult] = useState(null);
-  const [playerNameInput, setPlayerNameInput] = useState('');
+  const { playerName: playerNameInput, setPlayerName: setPlayerNameInput, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'microkart', score: gameResult.totalScore, onSubmitted: onScoreSubmitted, variant: 'silent' });
   const [isSubmittingScore, setIsSubmittingScore] = useState(false);
   const [isScoreSubmitted, setIsScoreSubmitted] = useState(false);
 
@@ -594,28 +606,7 @@ export default function MicroKartGame({ onScoreSubmitted }) {
   // 1. score <= 100 is hidden/blocked
   // 2. placeholder = '예: 홍길동'
   // 3. onScoreSubmitted('microkart') opens leaderboard with microkart tab!
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (!gameResult || gameResult.totalScore <= 100) return;
-    if (!playerNameInput.trim() || isSubmittingScore || isScoreSubmitted) return;
-
-    setIsSubmittingScore(true);
-    try {
-      await submitScoreToDB('microkart', playerNameInput.trim(), gameResult.totalScore);
-      setIsScoreSubmitted(true);
-      haptics.success();
-
-      if (onScoreSubmitted) {
-        setTimeout(() => {
-          onScoreSubmitted('microkart');
-        }, 400);
-      }
-    } catch (err) {
-      console.error('Failed to submit microkart score:', err);
-    } finally {
-      setIsSubmittingScore(false);
-    }
-  };
+  
 
   const handleBackToLobby = () => {
     if (reqAnimRef.current) cancelAnimationFrame(reqAnimRef.current);
@@ -992,7 +983,7 @@ export default function MicroKartGame({ onScoreSubmitted }) {
                       <input
                         type="text"
                         value={joinCodeInput}
-                        onChange={(e) => setJoinCodeInput(e.target.value)}
+                        onChange={(e) => setJoinCodeInput(e.target.value.replace(/[^0-9]/g, '').padStart(4, '0').slice(0, 4))}
                         placeholder="친구의 4자리 방 번호 입력"
                         maxLength={4}
                         className="microkart-input"
@@ -1005,6 +996,21 @@ export default function MicroKartGame({ onScoreSubmitted }) {
                       >
                         {p2pConnecting ? '입장 중...' : '방 입장하기'}
                       </button>
+                      {!p2pIsHost && p2pPlayers.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: '0.78rem', color: '#10B981', fontWeight: 700, marginBottom: '4px' }}>
+                            참여 인원 ({p2pPlayers.length}/4) — 방장의 시작을 기다리는 중
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {p2pPlayers.map((p, i) => (
+                              <div key={p.id || i} style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>{p.name} {p.isHost && '👑'}</span>
+                                <span style={{ color: '#94A3B8' }}>Ready</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

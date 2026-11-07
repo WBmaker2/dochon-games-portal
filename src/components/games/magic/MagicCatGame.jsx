@@ -4,8 +4,9 @@ import { GestureRecognizer } from './magicRecognizer';
 import { magicAudio } from './magicAudio';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, PLAYER_MAX_HP } from './magicConstants';
 import MagicCatHowToPlayModal from './MagicCatHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Trophy, RotateCcw, Volume2, VolumeX, HelpCircle,
   Heart, Sparkles, Wand2, Flame, Award, CheckCircle2, User, Send
@@ -24,13 +25,22 @@ export default function MagicCatGame({ onScoreSubmitted }) {
   const [stageIndex, setStageIndex] = useState(0);
   const [playerHp, setPlayerHp] = useState(PLAYER_MAX_HP);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = magicAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [stageAnnouncement, setStageAnnouncement] = useState(null);
 
   // Leaderboard submission states
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'magic', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   const isDrawingRef = useRef(false);
   const strokePointsRef = useRef([]);
@@ -197,23 +207,7 @@ export default function MagicCatGame({ onScoreSubmitted }) {
   };
 
   // Leaderboard Score Submission
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || isSubmitted || score <= 100) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('magic', playerName.trim(), score);
-      setIsSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Failed to submit score:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   return (
     <div className="magic-game-wrapper">

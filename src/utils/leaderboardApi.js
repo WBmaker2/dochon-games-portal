@@ -44,69 +44,12 @@ export function deduplicateLeaderboard(list) {
 }
 
 /**
- * Automatically migrate all locally stored custom scores/edits from localStorage to Firebase Cloud DB.
- * This runs upon app load to guarantee that any scores or edits previously made on this PC are safely pushed to the Cloud DB.
+ * Deprecated migration helper (kept for compatibility, intentionally a no-op).
+ * Scores are written by submitScoreToDB directly; bulk local-to-cloud migration
+ * is disabled because it would overwrite cloud data with stale local entries.
  */
 export async function syncLocalStorageToCloudDB() {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
-
-  try {
-    // 1. Fetch current Cloud DB root
-    const res = await fetch(`${DB_API_URL}.json`);
-    const cloudDb = res.ok ? (await res.json()) || {} : {};
-    let hasChanges = false;
-    const patchPayload = {};
-
-    // 2. Scan all localStorage keys for dochon_leaderboard_*
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('dochon_leaderboard_')) {
-        const gameKey = key.replace('dochon_leaderboard_', '');
-        try {
-          const localList = JSON.parse(localStorage.getItem(key) || '[]');
-          if (Array.isArray(localList) && localList.length > 0) {
-            const currentCloudGame = cloudDb[gameKey] || {};
-            const cloudItems = Object.keys(currentCloudGame).map(k => ({
-              id: k,
-              ...currentCloudGame[k]
-            }));
-
-            // Merge local and cloud lists, deduplicating and keeping highest score per unique name
-            const merged = deduplicateLeaderboard([...cloudItems, ...localList]);
-
-            // Construct Firebase-compatible key-value entries
-            const newGameObject = {};
-            merged.forEach((item, idx) => {
-              const itemId = item.id && !item.id.startsWith('local_') ? item.id : `migrated_${idx}_${Date.now()}`;
-              newGameObject[itemId] = {
-                name: item.name,
-                score: Number(item.score) || 0,
-                date: item.date || new Date().toISOString().split('T')[0],
-                timestamp: item.timestamp || Date.now()
-              };
-            });
-
-            patchPayload[gameKey] = newGameObject;
-            hasChanges = true;
-          }
-        } catch (e) {
-          console.warn('[Migration] Error parsing localStorage key:', key, e);
-        }
-      }
-    }
-
-    // 3. If there are merged items to save, send batch PATCH to Firebase
-    if (hasChanges && Object.keys(patchPayload).length > 0) {
-      await fetch(`${DB_API_URL}.json`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patchPayload)
-      });
-      console.log('[Migration] Successfully synced all localStorage data to Firebase Cloud DB!');
-    }
-  } catch (err) {
-    console.warn('[Migration] Cloud DB sync error:', err);
-  }
+  return null;
 }
 
 /**
@@ -550,4 +493,25 @@ function saveLocalLeaderboardFallback(gameKey, entry) {
   const updated = [...current, { ...entry, id: `local_${Date.now()}` }];
   const deduplicated = deduplicateLeaderboard(updated);
   localStorage.setItem(`dochon_leaderboard_${gameKey}`, JSON.stringify(deduplicated));
+}
+
+/**
+ * Local high score for a game, read from the local leaderboard cache.
+ * Replaces the legacy `getHighScore` from the removed `leaderboard.js`.
+ * submitScoreToDB returns false only for score <= 100; every other outcome
+ * (including cloud failure) returns true because the local cache is authoritative
+ * for offline play. Callers should keep using the optimistic local update.
+ */
+export function getLocalHighScore(gameKey, fallbackScore = 0) {
+  try {
+    const stored = localStorage.getItem(`dochon_leaderboard_${gameKey}`);
+    if (stored) {
+      const list = JSON.parse(stored);
+      if (Array.isArray(list) && list.length > 0) {
+        const maxScore = Math.max(...list.map(item => Number(item.score) || 0));
+        if (maxScore > 0) return maxScore;
+      }
+    }
+  } catch (e) {}
+  return fallbackScore;
 }

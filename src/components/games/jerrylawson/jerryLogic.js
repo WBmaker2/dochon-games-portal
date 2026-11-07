@@ -67,11 +67,11 @@ export class JerryGameLogic {
   loadBackgrounds() {
     const baseUrl = import.meta.env.BASE_URL || '/';
     const labBg = new Image();
-    labBg.src = `${baseUrl}assets/jerrylawson/lab_background.jpg`;
+    labBg.src = `${baseUrl}assets/jerrylawson/lab_background.webp`;
     this.bgImages.lab = labBg;
 
     const arcadeBg = new Image();
-    arcadeBg.src = `${baseUrl}assets/jerrylawson/arcade_background.jpg`;
+    arcadeBg.src = `${baseUrl}assets/jerrylawson/arcade_background.webp`;
     this.bgImages.arcade = arcadeBg;
   }
 

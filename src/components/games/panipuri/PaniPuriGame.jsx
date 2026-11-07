@@ -12,7 +12,9 @@ import {
   FLAVOR_LIST,
   PREP_TRAY_MAX_PURIS
 } from './panipuriConstants';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Volume2,
   VolumeX,
@@ -60,13 +62,21 @@ export default function PaniPuriGame({ onScoreSubmitted }) {
 
   // Audio & How to play modal
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = panipuriAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Hall of Fame Leaderboard Submission States
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'panipuri', score: gameState.score, onSubmitted: onScoreSubmitted, variant: 'error' });
 
   // Handle Game Over
   const handleGameOverCallback = (finalScore, finalServed) => {
@@ -246,33 +256,7 @@ export default function PaniPuriGame({ onScoreSubmitted }) {
   }, [gameState.currentCustomer, gameState.preparedPuris, gameState.isFever]);
 
   // Submit Score to Dochon Leaderboard
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || isSubmitted) return;
-
-    setIsSubmitting(true);
-    setSubmitError('');
-
-    try {
-      const res = await submitScoreToDB('panipuri', playerName.trim(), gameState.score);
-      if (res) {
-        setIsSubmitted(true);
-        panipuriAudio.playServeSuccess();
-        haptics.success();
-        setTimeout(() => {
-          if (onScoreSubmitted) {
-            onScoreSubmitted();
-          }
-        }, 700);
-      } else {
-        setSubmitError('100점 이하의 점수는 명예의 전당에 등록할 수 없습니다.');
-      }
-    } catch (err) {
-      setSubmitError('네트워크 오류가 발생했습니다.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   return (
     <div className="panipuri-container">

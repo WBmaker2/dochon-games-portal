@@ -5,7 +5,7 @@ export default function JerryHowToPlayModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   const baseUrl = import.meta.env.BASE_URL || '/';
-  const cutsceneUrl = `${baseUrl}assets/jerrylawson/story_cutscene.jpg`;
+  const cutsceneUrl = `${baseUrl}assets/jerrylawson/story_cutscene.webp`;
 
   return (
     <div className="jerry-modal-overlay" onClick={onClose}>

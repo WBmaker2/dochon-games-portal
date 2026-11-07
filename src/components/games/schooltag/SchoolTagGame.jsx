@@ -23,7 +23,8 @@ import {
 } from './schoolTagLogic';
 import { SchoolTagNetworkManager } from './schoolTagNetwork';
 import SchoolTagHowToPlayModal from './SchoolTagHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
+import { useGlobalMuted } from '../../../components/AudioProvider';
 import {
   Volume2,
   VolumeX,
@@ -48,6 +49,17 @@ export default function SchoolTagGame({ onScoreSubmitted }) {
   const [gameState, setGameState] = useState(GAME_STATES.MENU);
   const [gameMode, setGameMode] = useState('SINGLE'); // 'SINGLE' or 'MULTI'
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = schoolTagAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [howToPlayOpen, setHowToPlayOpen] = useState(false);
   const [selectedSkin, setSelectedSkin] = useState('boy');
   const [playerRole, setPlayerRole] = useState(ROLE_TYPES.RUNNER);
@@ -64,7 +76,7 @@ export default function SchoolTagGame({ onScoreSubmitted }) {
   // Results & Score
   const [finalScore, setFinalScore] = useState(0);
   const [gameResult, setGameResult] = useState(null); // 'ESCAPE_SUCCESS', 'CAUGHT', 'TIME_OVER'
-  const [playerNameInput, setPlayerNameInput] = useState('');
+  const { playerName: playerNameInput, setPlayerName: setPlayerNameInput, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'schooltag', score: finalScore, onSubmitted: onScoreSubmitted, variant: 'silent' });
   const [isSubmittingScore, setIsSubmittingScore] = useState(false);
   const [isScoreSubmitted, setIsScoreSubmitted] = useState(false);
 
@@ -298,6 +310,18 @@ export default function SchoolTagGame({ onScoreSubmitted }) {
     setGameMode('SINGLE');
     setPlayerRole(ROLE_TYPES.RUNNER);
     startMatchSession();
+  };
+
+  const handleRematch = () => {
+    // In MULTI the connection was torn down at GAME_OVER helpers, so the
+    // fastest safe path is back to the LOBBY (keep the same network, the host
+    // re-broadcasts GAME_START). In SINGLE start again immediately.
+    if (gameMode === 'MULTI') {
+      handleReturnToMenu();
+      setGameState(GAME_STATES.LOBBY);
+    } else {
+      startSinglePlayerGame();
+    }
   };
 
   const startMatchSession = (matchData = null) => {
@@ -733,25 +757,7 @@ export default function SchoolTagGame({ onScoreSubmitted }) {
   };
 
   // Handle Score Submission to Cloud DB (Strict Rule Enforcement)
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (finalScore <= 100 || isSubmittingScore || isScoreSubmitted) return;
-
-    const trimmedName = playerNameInput.trim() || '익명의 도촌러';
-    setIsSubmittingScore(true);
-
-    try {
-      await submitScoreToDB('schooltag', trimmedName, finalScore);
-      setIsScoreSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Failed to submit score:', err);
-    } finally {
-      setIsSubmittingScore(false);
-    }
-  };
+  
 
   // --- Render 2D Canvas & Fog of War Lighting ---
   const renderGame = () => {
@@ -1630,7 +1636,7 @@ export default function SchoolTagGame({ onScoreSubmitted }) {
                 </div>
               )}
 
-              <button onClick={startSinglePlayerGame} className="schooltag-btn-primary">
+              <button onClick={handleRematch} className="schooltag-btn-primary">
                 다시 플레이하기
               </button>
               <button

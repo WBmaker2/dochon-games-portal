@@ -1,58 +1,26 @@
 import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import GameCard from './components/GameCard';
 import LeaderboardModal from './components/LeaderboardModal';
-import ChangelogModal from './components/ChangelogModal';
+const ChangelogModal = lazy(() => import('./components/ChangelogModal'));
 import GuideModal from './components/GuideModal';
 import RulesNoticeModal from './components/RulesNoticeModal';
 import GameErrorBoundary from './components/GameErrorBoundary';
+import { AudioProvider } from './components/AudioProvider';
 import { PLAYABLE_GAMES, COMING_SOON_GAMES, CATEGORY_DEFINITIONS } from './data/gamesData';
 import { getLatestVersion } from './data/changelogData';
 import { getAllLeaderboardsFromDB } from './utils/leaderboardApi';
 import { getRankedPlayableGames } from './utils/rankingAlgorithm';
+import { GAME_COMPONENTS, validateRegistry } from './data/gameRegistry';
 import { soundFx } from './utils/audio';
 import { haptics } from './utils/haptics';
 import { Trophy, X, Lock, Gamepad2, Dices, Heart, Crown, History, HelpCircle, Smartphone, RotateCcw, ShieldCheck, Search, Volume2, VolumeX } from 'lucide-react';
 
-const GAME_COMPONENTS = {
-  pacman: lazy(() => import('./components/games/pacman/PacManGame')),
-  dino: lazy(() => import('./components/games/dino/DinoGame')),
-  snake: lazy(() => import('./components/games/snake/SnakeGame')),
-  solitaire: lazy(() => import('./components/games/solitaire/SolitaireGame')),
-  minesweeper: lazy(() => import('./components/games/minesweeper/MinesweeperGame')),
-  baseball: lazy(() => import('./components/games/baseball/BaseballGame')),
-  gnome: lazy(() => import('./components/games/gnome/GnomeGame')),
-  colortile: lazy(() => import('./components/games/colortile/ColorTileGame')),
-  popcorn: lazy(() => import('./components/games/popcorn/PopcornGame')),
-  tictactoe: lazy(() => import('./components/games/donut_tictactoe/DonutTicTacToeGame')),
-  champion: lazy(() => import('./components/games/champion/ChampionGame')),
-  cricket: lazy(() => import('./components/games/cricket/CricketGame')),
-  ponyexpress: lazy(() => import('./components/games/ponyexpress/PonyExpressGame')),
-  jerrylawson: lazy(() => import('./components/games/jerrylawson/JerryLawsonGame')),
-  magic: lazy(() => import('./components/games/magic/MagicCatGame')),
-  fruitmerge: lazy(() => import('./components/games/fruitmerge/FruitMergeGame')),
-  brickbreaker: lazy(() => import('./components/games/brickbreaker/BrickBreakerGame')),
-  skyjumper: lazy(() => import('./components/games/skyjumper/SkyJumperGame')),
-  kidscoding: lazy(() => import('./components/games/kidscoding/KidsCodingGame')),
-  bubbletea: lazy(() => import('./components/games/bubbletea/BubbleTeaGame')),
-  pizza: lazy(() => import('./components/games/pizza/PizzaGame')),
-  earthbee: lazy(() => import('./components/games/earthbee/EarthBeeGame')),
-  olympics: lazy(() => import('./components/games/olympics/OlympicsGame')),
-  pangolin: lazy(() => import('./components/games/pangolin/PangolinGame')),
-  roswell: lazy(() => import('./components/games/roswell/RoswellGame')),
-  petanque: lazy(() => import('./components/games/petanque/PetanqueGame')),
-  halfmoon: lazy(() => import('./components/games/halfmoon/HalfMoonGame')),
-  panipuri: lazy(() => import('./components/games/panipuri/PaniPuriGame')),
-  memory: lazy(() => import('./components/games/memory/MemoryGame')),
-  ghoulduel: lazy(() => import('./components/games/ghoulduel/GhoulDuelGame')),
-  snowball: lazy(() => import('./components/games/snowball/SnowballGame')),
-  schooltag: lazy(() => import('./components/games/schooltag/SchoolTagGame')),
-  microkart: lazy(() => import('./components/games/microkart/MicroKartGame')),
-  piratecoin: lazy(() => import('./components/games/piratecoin/PirateCoinGame')),
-  tetris: lazy(() => import('./components/games/tetris/TetrisGame')),
-};
+// Registry lives in src/data/gameRegistry.js (single source of truth)
+
 
 export default function App() {
   const [activeGame, setActiveGame] = useState(null);
+  const [gameAttempt, setGameAttempt] = useState(0);
   const [isRulesOpen, setIsRulesOpen] = useState(() => {
     try {
       const d = new Date();
@@ -139,6 +107,25 @@ export default function App() {
     });
   };
 
+  const readGameParam = () => {
+    try {
+      return new URLSearchParams(window.location.search).get('game');
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const writeGameParam = (gameId, mode = 'push') => {
+    try {
+      const url = new URL(window.location.href);
+      if (gameId) url.searchParams.set('game', gameId);
+      else url.searchParams.delete('game');
+      const next = `${url.pathname}${url.search}${url.hash}`;
+      if (mode === 'push') window.history.pushState(null, '', next);
+      else window.history.replaceState(null, '', next);
+    } catch (e) {}
+  };
+
   const handlePlayGame = (gameId) => {
     setPlayCounts(prev => {
       const next = { ...prev, [gameId]: (prev[gameId] || 0) + 1 };
@@ -148,7 +135,44 @@ export default function App() {
       return next;
     });
     setActiveGame(gameId);
+    writeGameParam(gameId, 'push');
   };
+
+  const closeGame = () => {
+    setActiveGame(null);
+    writeGameParam(null, 'replace');
+  };
+
+  // Deep link: restore the game from ?game=<id> on load / back navigation,
+  // and verify the registry matches the catalog in development.
+  useEffect(() => {
+    validateRegistry();
+    const initial = readGameParam();
+    if (initial && GAME_COMPONENTS[initial]) {
+      setActiveGame(initial);
+    }
+    const onPop = () => {
+      const id = readGameParam();
+      setActiveGame(id && GAME_COMPONENTS[id] ? id : null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Escape closes the topmost layer (game overlay or an open modal)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (isLeaderboardOpen) setIsLeaderboardOpen(false);
+      else if (isChangelogOpen) setIsChangelogOpen(false);
+      else if (isGuideOpen) setIsGuideOpen(false);
+      else if (isRulesOpen) setIsRulesOpen(false);
+      else if (activeGame) closeGame();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isLeaderboardOpen, isChangelogOpen, isGuideOpen, isRulesOpen, activeGame]);
 
   // 🚀 [추천 1: 실시간 랭킹 등록 활성도] + [추천 3: 신작 부스트] 하이브리드 인기 순위 계산
   const rankedPlayableGames = useMemo(() => {
@@ -612,7 +636,7 @@ export default function App() {
               <button
                 onClick={() => {
                   haptics.light();
-                  setActiveGame(null);
+                  closeGame();
                 }}
                 className="game-modal-close-btn"
                 title="게임 종료 및 닫기"
@@ -644,7 +668,7 @@ export default function App() {
 
             {/* Modal Game Content Area with Code Splitting Suspense & Error Boundary */}
             <div className="game-modal-body">
-              <GameErrorBoundary onClose={() => setActiveGame(null)} onRetry={() => {}}>
+              <GameErrorBoundary onClose={() => closeGame()} onRetry={() => setGameAttempt(prev => prev + 1)}>
                 <Suspense fallback={
                   <div style={{
                     display: 'flex',
@@ -670,9 +694,13 @@ export default function App() {
                     const SelectedGameComponent = GAME_COMPONENTS[activeGame];
                     if (!SelectedGameComponent) return null;
                     return (
-                      <SelectedGameComponent
-                        onScoreSubmitted={() => openInPageLeaderboardModal(activeGame)}
-                      />
+                      <AudioProvider initialMuted={isMuted}>
+                        <SelectedGameComponent
+                          key={`${activeGame}-${gameAttempt}`}
+                          isMuted={isMuted}
+                          onScoreSubmitted={() => openInPageLeaderboardModal(activeGame)}
+                        />
+                      </AudioProvider>
                     );
                   })()}
                 </Suspense>
@@ -690,10 +718,12 @@ export default function App() {
       />
 
       {/* 7. Pure HTML/CSS In-Page Overlay Modal for Changelog Release Notes */}
-      <ChangelogModal
-        isOpen={isChangelogOpen}
-        onClose={() => setIsChangelogOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <ChangelogModal
+          isOpen={isChangelogOpen}
+          onClose={() => setIsChangelogOpen(false)}
+        />
+      </Suspense>
 
       {/* 8. Pure HTML/CSS In-Page Overlay Modal for Portal Guide & Mobile Advice */}
       <GuideModal

@@ -116,6 +116,14 @@ export class SnowballNetworkManager {
   }
 
   // --- HOST: Create a Room via Firebase RTDB Signaling & Relay ---
+  // --- Host heartbeat watchdog (guest side; covers relay mode): ---
+  _startGuestWatchdog(roomCode) {
+    this.signaling.startHostWatchdog(roomCode, () => {
+      this._emitStatus('방장과의 연결이 끊어졌습니다. 대기실로 돌아갑니다.');
+      if (this.onDisconnect) this.onDisconnect('방장과의 연결이 끊어졌습니다.');
+    });
+  }
+
   async createRoom(numericCode, playerName, skinId = 'penguin') {
     this.disconnect();
 
@@ -443,6 +451,7 @@ export class SnowballNetworkManager {
                 this._emitStatus('🎉 Firebase 안전 릴레이 모드로 대기실 입장 완료!');
                 if (this.onLobbyUpdate) this.onLobbyUpdate([...this.lobbyPlayers]);
                 settle('resolve', cleanCode);
+                  this._startGuestWatchdog(cleanCode);
               } else {
                 const errorMsg = data.message || '방 입장이 거부되었습니다.';
                 this._emitStatus(`❌ ${errorMsg}`);
@@ -519,6 +528,7 @@ export class SnowballNetworkManager {
 
                 this.signaling.cleanupGuestSignaling(cleanCode, guestId);
                 settle('resolve', cleanCode);
+                  this._startGuestWatchdog(cleanCode);
               } else {
                 const errorMsg = data.message || '방 입장이 거부되었습니다.';
                 this._emitStatus(`❌ ${errorMsg}`);

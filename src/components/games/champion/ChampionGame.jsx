@@ -21,7 +21,8 @@ import {
   ClimbingEngine
 } from './championLogic';
 import { championAudio } from './championAudio';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
+import { useGlobalMuted } from '../../../components/AudioProvider';
 import ChampionHowToPlayModal from './ChampionHowToPlayModal';
 import confetti from 'canvas-confetti';
 import './champion.css';
@@ -58,6 +59,17 @@ export default function ChampionGame({ onScoreSubmitted }) {
   });
   const [totalScore, setTotalScore] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = championAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Active NPC Dialogue
@@ -67,9 +79,7 @@ export default function ChampionGame({ onScoreSubmitted }) {
 
   // Result & Leaderboard Submission
   const [lastMatchResult, setLastMatchResult] = useState(null); // { sport, score, won }
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const { isSubmitted: submitSuccess, setIsSubmitted: setSubmitSuccess, playerName, setPlayerName, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'champion', score: totalScore, onSubmitted: onScoreSubmitted, variant: 'error' });
 
   // Canvas & Physics Loop Refs
   const canvasRef = useRef(null);
@@ -208,28 +218,7 @@ export default function ChampionGame({ onScoreSubmitted }) {
   };
 
   // Submit Score to Hall of Fame
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting) return;
-
-    setIsSubmitting(true);
-    try {
-      const success = await submitScoreToDB('champion', playerName.trim(), totalScore);
-      if (success) {
-        setSubmitSuccess(true);
-        championAudio.playScrollWin();
-        if (onScoreSubmitted) {
-          setTimeout(() => {
-            onScoreSubmitted();
-          }, 800);
-        }
-      }
-    } catch (err) {
-      console.error('Score submit error:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // ============================================================
   // RENDER ROUTINES: 16-BIT RETRO PIXEL SPRITES & CANVASES

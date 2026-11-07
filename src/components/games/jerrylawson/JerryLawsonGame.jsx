@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { JerryGameLogic } from './jerryLogic';
 import { jerryAudio } from './jerryAudio';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
+import { useGlobalMuted } from '../../../components/AudioProvider';
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
@@ -39,6 +40,17 @@ export default function JerryLawsonGame({ onScoreSubmitted }) {
   // Game Lifecycle State: 'START' | 'PLAYING' | 'PAUSED' | 'EDITOR' | 'GAMEOVER' | 'VICTORY'
   const [gameState, setGameState] = useState('START');
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = jerryAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // HUD State
@@ -65,10 +77,7 @@ export default function JerryLawsonGame({ onScoreSubmitted }) {
   );
 
   // Score Registration State
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'jerrylawson', score: hudData.score, onSubmitted: onScoreSubmitted, variant: 'error' });
 
   // Input Tracking
   const inputRef = useRef({
@@ -376,25 +385,7 @@ export default function JerryLawsonGame({ onScoreSubmitted }) {
   };
 
   // Score Submit Handler
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting) return;
-
-    setIsSubmitting(true);
-    setSubmitError('');
-
-    try {
-      await submitScoreToDB('jerrylawson', playerName.trim(), hudData.score);
-      setIsSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      setSubmitError('점수 등록에 실패했습니다. 다시 시도해 주세요.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   return (
     <div className="jerry-container">

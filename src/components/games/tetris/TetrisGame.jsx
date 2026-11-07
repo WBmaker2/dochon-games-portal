@@ -6,8 +6,6 @@ import {
   Pause,
   Play,
   RotateCcw,
-  Trophy,
-  CheckCircle2,
 } from 'lucide-react';
 
 import {
@@ -23,8 +21,10 @@ import {
 } from './tetrisConstants';
 import { tetrisSound } from './tetrisSound';
 import TetrisHowToPlayModal from './TetrisHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import ScoreSubmitForm from '../../../components/ScoreSubmitForm';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
+import { useGlobalMuted } from '../../../components/AudioProvider';
 import './tetris.css';
 
 // -----------------------------------------------------------------------------
@@ -168,13 +168,17 @@ export default function TetrisGame({ onScoreSubmitted }) {
   const [board, setBoard] = useState(() => createEmptyBoard());
   const [currentPiece, setCurrentPiece] = useState(null);
   const [nextPiece, setNextPiece] = useState(null);
-  const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted, toggleMute: toggleGlobalMute } = useGlobalMuted();
+  const [isMuted, setIsMuted] = useState(() => globalMuted ?? false);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
-  // Leaderboard Form State
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  // Sync global mute into tetris's own theme engine (setMuted stops the theme)
+  useEffect(() => {
+    tetrisSound.setMuted(globalMuted ?? false);
+  }, [globalMuted]);
+
+  // Leaderboard Form State (shared hook)
+  const scoreSubmit = useScoreSubmit({ gameKey: 'tetris', score, onSubmitted: onScoreSubmitted });
 
   // Canvas Refs
   const canvasRef = useRef(null);
@@ -673,9 +677,7 @@ export default function TetrisGame({ onScoreSubmitted }) {
     flashesRef.current = [];
     floatingTextsRef.current = [];
 
-    setPlayerName('');
-    setIsSubmitting(false);
-    setIsSubmitted(false);
+    scoreSubmit.resetSubmitState();
 
     gameStateRef.current = 'playing';
     setGameState('playing');
@@ -689,16 +691,13 @@ export default function TetrisGame({ onScoreSubmitted }) {
     startGame();
   };
 
-  // Sound Toggle Handler
+  // Sound Toggle Handler (synced with portal-wide AudioProvider)
   const toggleSound = () => {
-    setIsMuted((prev) => {
-      const nextMuted = !prev;
-      tetrisSound.setMuted(nextMuted);
-      if (!nextMuted && gameStateRef.current === 'playing') {
-        tetrisSound.playTheme();
-      }
-      return nextMuted;
-    });
+    const nextMuted = toggleGlobalMute();
+    setIsMuted(nextMuted);
+    if (!nextMuted && gameStateRef.current === 'playing') {
+      tetrisSound.playTheme();
+    }
   };
 
   // Help Modal Toggle
@@ -799,26 +798,6 @@ export default function TetrisGame({ onScoreSubmitted }) {
       tetrisSound.stopTheme();
     };
   }, []);
-
-  // ---------------------------------------------------------------------------
-  // Leaderboard Score Submission Handler
-  // ---------------------------------------------------------------------------
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || score <= 100) return;
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('tetris', playerName.trim(), score);
-      setIsSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted('tetris');
-      }
-    } catch (err) {
-      console.error('Failed to submit score:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
     <div className="tetris-container">
@@ -1007,41 +986,18 @@ export default function TetrisGame({ onScoreSubmitted }) {
                     >
                       ⚠️ 명예의 전당 등록은 100점 초과 달성 시에만 가능합니다. (현재: {score}점)
                     </div>
-                  ) : isSubmitted ? (
-                    <div className="tetris-hof-success">
-                      <CheckCircle2 style={{ width: '16px', height: '16px' }} />
-                      <span>명예의 전당에 성공적으로 등록되었습니다! 🏆</span>
-                    </div>
                   ) : (
-                    <form onSubmit={handleScoreSubmit} className="tetris-hof-form">
-                      <div className="tetris-hof-title">
-                        <Trophy style={{ width: '14px', height: '14px' }} />
-                        <span>도촌초 명예의 전당 등록</span>
-                      </div>
-                      <div className="tetris-hof-input-group">
-                        <input
-                          type="text"
-                          value={playerName}
-                          onChange={(e) => setPlayerName(e.target.value)}
-                          placeholder="예: 홍길동"
-                          maxLength={10}
-                          disabled={isSubmitting || isSubmitted}
-                          required
-                          className="tetris-hof-input"
-                          autoFocus
-                        />
-                        <button
-                          type="submit"
-                          disabled={isSubmitting || isSubmitted || !playerName.trim()}
-                          className="tetris-hof-btn"
-                        >
-                          {isSubmitting ? '등록 중...' : '등록하기 🏆'}
-                        </button>
-                      </div>
-                      <p className="tetris-hof-notice">
-                        이름(또는 닉네임)을 입력하고 실시간 랭킹에 도전하세요!
-                      </p>
-                    </form>
+                    <ScoreSubmitForm
+                      score={score}
+                      submitState={scoreSubmit}
+                      formClassName="tetris-hof-form"
+                      inputClassName="tetris-hof-input"
+                      buttonClassName="tetris-hof-btn"
+                      successClassName="tetris-hof-success"
+                      successText="명예의 전당에 성공적으로 등록되었습니다! 🏆"
+                      titleNode={<div className="tetris-hof-title"><span>도촌초 명예의 전당 등록</span></div>}
+                      noticeText="이름(또는 닉네임)을 입력하고 실시간 랭킹에 도전하세요!"
+                    />
                   )}
 
                   {/* Restart Button */}

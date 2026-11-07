@@ -11,8 +11,9 @@ import {
 import { OlympicsRenderEngine } from './olympicsEngine';
 import { olympicsAudio } from './olympicsAudio';
 import OlympicsHowToPlayModal from './OlympicsHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Trophy,
   Volume2,
@@ -36,6 +37,17 @@ export default function OlympicsGame({ onScoreSubmitted }) {
   const [currentEvent, setCurrentEvent] = useState(GAME_EVENTS.INTRO);
   const [selectedTeam, setSelectedTeam] = useState(ATHLETE_PALETTES[0]);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = olympicsAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Event Scores
@@ -47,9 +59,7 @@ export default function OlympicsGame({ onScoreSubmitted }) {
   });
 
   // Leaderboard Form States
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'olympics', score: scores.total, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // In-Game Live HUD Stats
   const [liveEventScore, setLiveEventScore] = useState(0);
@@ -651,24 +661,7 @@ export default function OlympicsGame({ onScoreSubmitted }) {
   }, [gameLoop]);
 
   // Handle Leaderboard Score Submission
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || isSubmitted) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('olympics', playerName.trim(), scores.total);
-      setIsSubmitted(true);
-      haptics.success();
-      if (onScoreSubmitted) {
-        onScoreSubmitted('olympics');
-      }
-    } catch (err) {
-      alert('점수 등록 중 오류가 발생했습니다. 다시 시도해주세요.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // Determine Medal
   const getMedalInfo = (total) => {

@@ -21,7 +21,8 @@ import {
 } from './baseballLogic';
 import BaseballHowToPlayModal from './BaseballHowToPlayModal';
 import { soundFx } from '../../../utils/audio';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import { haptics } from '../../../utils/haptics';
 import {
   Volume2,
@@ -97,6 +98,17 @@ export default function BaseballGame({ onScoreSubmitted }) {
 
   // UI / Feedback Overlays
   const [isMuted, setIsMuted] = useState(soundFx.muted);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = soundFx;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const [pitchToast, setPitchToast] = useState(null);
   const [speedUpAlert, setSpeedUpAlert] = useState(null);
@@ -104,9 +116,7 @@ export default function BaseballGame({ onScoreSubmitted }) {
   const [showHomerunBadge, setShowHomerunBadge] = useState(false);
 
   // Leaderboard Registration
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'baseball', score: scoreRef.current, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // Synchronize refs to React state for UI rendering
   const syncUiState = useCallback(() => {
@@ -134,11 +144,11 @@ export default function BaseballGame({ onScoreSubmitted }) {
     const pitcher = new Image();
     const badge = new Image();
 
-    bg.src = getAsset('bg_stadium.jpg');
-    bReady.src = getAsset('batter_ready.jpg');
-    bSwing.src = getAsset('batter_swing.jpg');
-    pitcher.src = getAsset('pitcher_throw.jpg');
-    badge.src = getAsset('homerun_badge.jpg');
+    bg.src = getAsset('bg_stadium.webp');
+    bReady.src = getAsset('batter_ready.webp');
+    bSwing.src = getAsset('batter_swing.webp');
+    pitcher.src = getAsset('pitcher_throw.webp');
+    badge.src = getAsset('homerun_badge.webp');
 
     let loadedCount = 0;
     const totalToLoad = 5;
@@ -818,25 +828,7 @@ export default function BaseballGame({ onScoreSubmitted }) {
   }, [syncUiState, startNextPitch]);
 
   // 6. Submit High Score to Cloud DB (Strict Rule: score > 100 & placeholder "예: 홍길동")
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (scoreRef.current <= 100 || isSubmitting || isSubmitted) return;
-
-    const trimmedName = playerName.trim() || '도촌 타자왕';
-    setIsSubmitting(true);
-
-    try {
-      await submitScoreToDB('baseball', trimmedName, scoreRef.current);
-      setIsSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Failed to submit baseball score:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   return (
     <div className="baseball-game-container">
@@ -1011,7 +1003,7 @@ export default function BaseballGame({ onScoreSubmitted }) {
         {showHomerunBadge && (
           <div className="homerun-badge-overlay">
             <img
-              src={getAsset('homerun_badge.jpg')}
+              src={getAsset('homerun_badge.webp')}
               alt="Homerun Badge"
               className="homerun-badge-img"
             />

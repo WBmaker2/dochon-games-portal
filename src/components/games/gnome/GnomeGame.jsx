@@ -18,7 +18,8 @@ import {
 } from './gnomeLogic';
 import GnomeHowToPlayModal from './GnomeHowToPlayModal';
 import { soundFx } from '../../../utils/audio';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Volume2,
   VolumeX,
@@ -109,12 +110,21 @@ export default function GnomeGame({ onScoreSubmitted }) {
   // Feedback Toast & Modals
   const [toastAlert, setToastAlert] = useState(null);
   const [isMuted, setIsMuted] = useState(soundFx.muted);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = soundFx;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Leaderboard Form State
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'gnome', score: totalScore, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // Trigger temporary toast
   const showToast = (message) => {
@@ -133,7 +143,7 @@ export default function GnomeGame({ onScoreSubmitted }) {
     async function loadAssets() {
       // 1. Background
       const bg = new Image();
-      bg.src = getAsset('bg_garden.jpg');
+      bg.src = getAsset('bg_garden.webp');
       bgImgRef.current = bg;
 
       // 2. Gnome Characters
@@ -611,23 +621,7 @@ export default function GnomeGame({ onScoreSubmitted }) {
   // =========================================================================
   // Hall of Fame Leaderboard Submission
   // =========================================================================
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || isSubmitted) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('gnome', playerName.trim(), totalScore);
-      setIsSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Failed to submit score:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   const toggleSound = () => {
     const muted = soundFx.toggleMute();

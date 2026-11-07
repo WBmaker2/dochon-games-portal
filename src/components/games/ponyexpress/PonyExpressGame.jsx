@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PonyGameLogic } from './ponyLogic';
 import { ponyAudio } from './ponyAudio';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
+import { useGlobalMuted } from '../../../components/AudioProvider';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, TOTAL_LETTERS } from './ponyConstants';
 import PonyExpressHowToPlayModal from './PonyExpressHowToPlayModal';
 import { Play, RotateCcw, Volume2, VolumeX, HelpCircle, Trophy, Award, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from 'lucide-react';
@@ -24,13 +25,21 @@ export default function PonyExpressGame({ onScoreSubmitted }) {
 
   // Sound Settings
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = ponyAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Score Registration State
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'ponyexpress', score: hudData.score, onSubmitted: onScoreSubmitted, variant: 'error' });
 
   // Touch Swipe Handling
   const touchStartYRef = useRef(0);
@@ -77,31 +86,7 @@ export default function PonyExpressGame({ onScoreSubmitted }) {
   };
 
   // Submit High Score to Cloud DB (Strict Dochon Rule: score > 100 & placeholder "예: 홍길동")
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || isSubmitted) return;
-
-    setIsSubmitting(true);
-    setSubmitError('');
-
-    try {
-      const finalScore = hudData.score;
-      const success = await submitScoreToDB('ponyexpress', playerName.trim(), finalScore);
-
-      if (success) {
-        setIsSubmitted(true);
-        if (onScoreSubmitted) {
-          onScoreSubmitted();
-        }
-      } else {
-        setSubmitError('점수 등록에 실패했습니다. 다시 시도해주세요.');
-      }
-    } catch (err) {
-      setSubmitError('네트워크 오류가 발생했습니다.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // Main 60FPS Game Loop
   // Main 30FPS Game Loop with Delta Time Normalization & React Throttling (50% GPU Reduction)

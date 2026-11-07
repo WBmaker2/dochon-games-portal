@@ -42,6 +42,9 @@ export default function LeaderboardModal({ isOpen, onClose, activeTab = 'pacman'
     if (showLoading) setLoading(false);
   };
 
+  const [passwordAttempts, setPasswordAttempts] = useState(0);
+  const ADMIN_LOCKOUT_ATTEMPTS = 5;
+
   // Secret Hidden Trigger on Left Trophy Circle (Seamless Graphic)
   const handleTrophyClick = () => {
     if (isAdminMode) return;
@@ -50,17 +53,29 @@ export default function LeaderboardModal({ isOpen, onClose, activeTab = 'pacman'
     setShowPasswordPrompt(true);
   };
 
-  // 100% Reliable Admin Password Verification for '8582'
+  // Admin password is provided via env (VITE_ADMIN_PASS). Firebase Auth will replace this client-side check.
   const handlePasswordSubmit = (e) => {
     e.preventDefault();
     const cleanInput = String(passwordInput).trim();
-    if (cleanInput === '8582' || btoa(cleanInput) === 'ODU4Mg==') {
+    const expected = (import.meta.env.VITE_ADMIN_PASS || '').trim();
+    if (passwordAttempts >= ADMIN_LOCKOUT_ATTEMPTS) {
+      setPasswordError('🔒 입력 횟수를 초과했습니다. 잠시 후 다시 시도하세요.');
+      return;
+    }
+    if (expected && cleanInput === expected) {
       setIsAdminMode(true);
       setShowPasswordPrompt(false);
       setPasswordInput('');
       setPasswordError('');
+      setPasswordAttempts(0);
     } else {
-      setPasswordError('❌ 관리자 암호가 올바르지 않습니다.');
+      const nextAttempts = passwordAttempts + 1;
+      setPasswordAttempts(nextAttempts);
+      if (nextAttempts >= ADMIN_LOCKOUT_ATTEMPTS) {
+        setPasswordError('🔒 입력 횟수를 초과했습니다. 잠시 후 다시 시도하세요.');
+      } else {
+        setPasswordError('❌ 관리자 암호가 올바르지 않습니다.');
+      }
     }
   };
 
@@ -424,10 +439,10 @@ export default function LeaderboardModal({ isOpen, onClose, activeTab = 'pacman'
 
                         {isAdminMode && (
                           <div style={{ display: 'flex', gap: '4px', marginLeft: '4px' }}>
-                            <button onClick={() => startEditing(item)} style={{ backgroundColor: '#2563EB', color: '#FFFFFF', border: 'none', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }} title="수정">
+                            <button disabled title="인증 도입 전까지 기록 수정·삭제가 비활성 상태입니다" style={{ backgroundColor: '#475569', color: '#FFFFFF', border: 'none', padding: '4px 8px', borderRadius: '6px', cursor: 'not-allowed', opacity: 0.6 }}>
                               <Edit2 style={{ width: '12px', height: '12px' }} />
                             </button>
-                            <button onClick={(e) => handleDelete(item.id, item.name, e)} style={{ backgroundColor: '#E11D48', color: '#FFFFFF', border: 'none', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }} title="삭제">
+                            <button disabled title="인증 도입 전까지 기록 수정·삭제가 비활성 상태입니다" style={{ backgroundColor: '#475569', color: '#FFFFFF', border: 'none', padding: '4px 8px', borderRadius: '6px', cursor: 'not-allowed', opacity: 0.6 }}>
                               <Trash2 style={{ width: '12px', height: '12px' }} />
                             </button>
                           </div>

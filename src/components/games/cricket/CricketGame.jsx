@@ -23,8 +23,9 @@ import {
 } from './cricketLogic';
 import { cricketAudio } from './cricketAudio';
 import CricketHowToPlayModal from './CricketHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Volume2,
   VolumeX,
@@ -94,9 +95,18 @@ export default function CricketGame({ onScoreSubmitted }) {
   // Modals & Controls State
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submittedSuccess, setSubmittedSuccess] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = cricketAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
+  const { isSubmitted: submittedSuccess, setIsSubmitted: setSubmittedSuccess, playerName, setPlayerName, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'cricket', score: finalScore, onSubmitted: onScoreSubmitted, variant: 'error' });
 
   // Load High Score from LocalStorage
   useEffect(() => {
@@ -125,19 +135,19 @@ export default function CricketGame({ onScoreSubmitted }) {
 
     const loadImages = async () => {
       const bgImg = new Image();
-      bgImg.src = getAsset('bg_stadium.jpg');
+      bgImg.src = getAsset('bg_stadium.webp');
 
       const bReadyRaw = new Image();
-      bReadyRaw.src = getAsset('batter_ready.jpg');
+      bReadyRaw.src = getAsset('batter_ready.webp');
 
       const bSwingRaw = new Image();
-      bSwingRaw.src = getAsset('batter_swing.jpg');
+      bSwingRaw.src = getAsset('batter_swing.webp');
 
       const bowlerRaw = new Image();
-      bowlerRaw.src = getAsset('bowler_throw.jpg');
+      bowlerRaw.src = getAsset('bowler_throw.webp');
 
       const sixBadgeRaw = new Image();
-      sixBadgeRaw.src = getAsset('six_badge.jpg');
+      sixBadgeRaw.src = getAsset('six_badge.webp');
 
       const waitImg = (img) =>
         new Promise((resolve) => {
@@ -307,28 +317,7 @@ export default function CricketGame({ onScoreSubmitted }) {
   // =========================================================================
   // Leaderboard Score Submission Handler
   // =========================================================================
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || finalScore <= 100) return;
-
-    setIsSubmitting(true);
-    try {
-      const res = await submitScoreToDB('cricket', playerName.trim(), finalScore);
-      if (res === true || res?.success || res) {
-        setSubmittedSuccess(true);
-        if (onScoreSubmitted) {
-          onScoreSubmitted();
-        }
-      } else {
-        alert('점수 등록에 실패했습니다. 다시 시도해주세요.');
-      }
-    } catch (err) {
-      console.error('Score submit error:', err);
-      alert('오류가 발생했습니다.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // =========================================================================
   // Keyboard Listeners

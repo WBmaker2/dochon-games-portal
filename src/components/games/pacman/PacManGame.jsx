@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { DOCHON_MAZE_GRID, TILE_SIZE, COLS, ROWS, LETTER_REGIONS } from './mazeData';
 import { soundFx } from '../../../utils/audio';
-import { saveScore, getHighScore } from '../../../utils/leaderboard';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import {  getLocalHighScore } from '../../../utils/leaderboardApi';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import { haptics } from '../../../utils/haptics';
 import { Play, Pause, RotateCcw, Volume2, VolumeX, Trophy, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -11,12 +12,22 @@ import './pacman.css';
 export default function PacManGame({ onScoreSubmitted }) {
   const canvasRef = useRef(null);
   const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(() => getHighScore('pacman'));
+  const [highScore, setHighScore] = useState(() => getLocalHighScore('pacman', 3250));
   const [lives, setLives] = useState(3);
   const [gameState, setGameState] = useState('IDLE');
   const [isMuted, setIsMuted] = useState(false);
-  const [studentName, setStudentName] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = soundFx;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
+  const { playerName: studentName, isSubmitted: submitted, setPlayerName: setStudentName, setIsSubmitted: setSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'pacman', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
   const [comboText, setComboText] = useState('');
 
   const gameStateRef = useRef({
@@ -473,14 +484,7 @@ export default function PacManGame({ onScoreSubmitted }) {
     return () => cancelAnimationFrame(animationFrameId);
   }, [gameState]);
 
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!studentName.trim() || score <= 100) return;
-    saveScore('pacman', studentName, score);
-    await submitScoreToDB('pacman', studentName, score);
-    setSubmitted(true);
-    if (onScoreSubmitted) onScoreSubmitted();
-  };
+  
 
   return (
     <div className="pacman-game-wrap">

@@ -3,8 +3,9 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from './skyJumperConstants';
 import { SkyJumperPhysics } from './skyJumperPhysics';
 import { skyJumperAudio } from './skyJumperAudio';
 import SkyJumperHowToPlayModal from './SkyJumperHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Volume2,
   VolumeX,
@@ -36,13 +37,22 @@ export default function SkyJumperGame({ onScoreSubmitted }) {
     }
   });
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = skyJumperAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToOpen, setIsHowToOpen] = useState(false);
   const [gameOverReason, setGameOverReason] = useState('추락');
 
   // Leaderboard State
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const { isSubmitted: hasSubmitted, setIsSubmitted: setHasSubmitted, playerName, setPlayerName, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'skyjumper', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // Canvas & Physics Engine Refs
   const canvasRef = useRef(null);
@@ -315,24 +325,7 @@ export default function SkyJumperGame({ onScoreSubmitted }) {
   };
 
   // Submit Leaderboard Score
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    const cleanName = playerName.trim();
-    if (!cleanName || isSubmitting) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('skyjumper', cleanName, score);
-      setHasSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Failed to submit skyjumper score:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   return (
     <div className="sj-game-container">

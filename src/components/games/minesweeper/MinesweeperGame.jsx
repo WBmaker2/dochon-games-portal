@@ -21,8 +21,9 @@ import {
   Zap
 } from 'lucide-react';
 import { soundFx } from '../../../utils/audio';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
-import { getHighScore } from '../../../utils/leaderboard';
+import {  getLocalHighScore } from '../../../utils/leaderboardApi';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   DIFFICULTIES,
   TILE_STATUS,
@@ -59,7 +60,7 @@ export default function MinesweeperGame({ onScoreSubmitted }) {
   const [flagsCount, setFlagsCount] = useState(0);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(() => getHighScore('minesweeper') || 0);
+  const [highScore, setHighScore] = useState(() => getLocalHighScore('minesweeper', 0) || 0);
 
   // Kid-Friendly Features: Safety Shield & Mobile Mode Switcher
   const [shieldAvailable, setShieldAvailable] = useState(true);
@@ -67,10 +68,20 @@ export default function MinesweeperGame({ onScoreSubmitted }) {
   const [coachMsg, setCoachMsg] = useState('🌱 첫 번째 잔디밭은 100% 안전해요! 마음에 드는 곳을 클릭해보세요.');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = soundFx;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
 
   // Victory Submission Form
-  const [studentName, setStudentName] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const { playerName: studentName, isSubmitted: submitted, setPlayerName: setStudentName, setIsSubmitted: setSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'minesweeper', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // Touch Long-press Handler
   const longPressTimerRef = useRef(null);
@@ -288,16 +299,7 @@ export default function MinesweeperGame({ onScoreSubmitted }) {
   };
 
   // 6. Hall of Fame High Score Submission (Rule: score > 100)
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!studentName.trim() || submitted || score <= 100) return;
-
-    await submitScoreToDB('minesweeper', studentName.trim(), score);
-    setSubmitted(true);
-    if (onScoreSubmitted) {
-      onScoreSubmitted();
-    }
-  };
+  
 
   // 7. Touch Handlers for Mobile (Long Press for Flag)
   const handleTouchStart = (r, c) => {

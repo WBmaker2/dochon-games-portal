@@ -12,8 +12,9 @@ import {
   CLEAR_BONUS_SCORE,
   ECO_FACTS
 } from './earthBeeConstants';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Volume2,
   VolumeX,
@@ -92,6 +93,17 @@ export default function EarthBeeGame({ onScoreSubmitted }) {
 
   // Sound & Modals
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = earthBeeAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Educational Eco Fact Toast
@@ -99,10 +111,7 @@ export default function EarthBeeGame({ onScoreSubmitted }) {
   const [showFact, setShowFact] = useState(true);
 
   // Leaderboard Form
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'earthbee', score: score, onSubmitted: onScoreSubmitted, variant: 'error' });
 
   // Active key state tracking
   const keysPressedRef = useRef({ up: false, down: false, left: false, right: false });
@@ -362,30 +371,7 @@ export default function EarthBeeGame({ onScoreSubmitted }) {
   };
 
   // Leaderboard Score Submission (strictly score > 100)
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (score <= 100) return;
-    if (!playerName.trim()) {
-      setSubmitError('이름을 입력해 주세요!');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setSubmitError('');
-
-    try {
-      await submitScoreToDB('earthbee', playerName.trim(), score);
-      setIsSubmitted(true);
-      haptics.success();
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      setSubmitError('등록 중 오류가 발생했습니다. 다시 시도해 주세요.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   return (
     <div className="earthbee-container">

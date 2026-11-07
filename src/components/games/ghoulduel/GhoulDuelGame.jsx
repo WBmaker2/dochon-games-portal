@@ -4,8 +4,9 @@ import { ghoulAudio } from './ghoulDuelAudio';
 import { ghoulNet, GhoulDuelNetworkManager } from './ghoulDuelNetwork';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, DIFFICULTY_PRESETS } from './ghoulDuelConstants';
 import GhoulDuelHowToPlayModal from './GhoulDuelHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Trophy, RotateCcw, Volume2, VolumeX, HelpCircle,
   Sparkles, Flame, Zap, Award, CheckCircle2, User, Send, Play,
@@ -28,6 +29,17 @@ export default function GhoulDuelGame({ onScoreSubmitted }) {
   const [playerTail, setPlayerTail] = useState(0);
   const [playerDeposited, setPlayerDeposited] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = ghoulAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   // P2P State
@@ -44,9 +56,7 @@ export default function GhoulDuelGame({ onScoreSubmitted }) {
   const [gameResult, setGameResult] = useState(null);
 
   // Leaderboard Form State
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'ghoulduel', score: gameResult ? gameResult.playerScore : 0, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // Touch Virtual Joystick State
   const joystickRef = useRef(null);
@@ -247,6 +257,7 @@ export default function GhoulDuelGame({ onScoreSubmitted }) {
     };
 
     return () => {
+      ghoulNet.disconnect();
       ghoulNet.onLobbyUpdate = null;
       ghoulNet.onGameStart = null;
       ghoulNet.onSnapshot = null;
@@ -382,31 +393,7 @@ export default function GhoulDuelGame({ onScoreSubmitted }) {
   };
 
   // Leaderboard Score Submit Handler (Only for P2P and score > 100)
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (playMode !== 'P2P') return;
-    if (!playerName.trim() || isSubmitting || isSubmitted) return;
-
-    const finalPlayerScore = gameResult ? gameResult.playerScore : playerDeposited;
-    if (finalPlayerScore <= 100) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('ghoulduel', playerName.trim(), finalPlayerScore);
-      setIsSubmitted(true);
-      haptics.success();
-
-      if (onScoreSubmitted) {
-        setTimeout(() => {
-          onScoreSubmitted();
-        }, 1200);
-      }
-    } catch (err) {
-      console.error('Failed to submit ghoulduel score:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // Calculate Tug-of-war Percentage
   const totalScore = teamScores.green + teamScores.purple;
@@ -904,11 +891,7 @@ export default function GhoulDuelGame({ onScoreSubmitted }) {
                   className="btn-primary"
                   onClick={() => {
                     if (playMode === 'P2P') {
-                      if (p2pIsHost) {
-                        setGameState('LOBBY');
-                      } else {
-                        setGameState('START');
-                      }
+                      setGameState('LOBBY');
                     } else {
                       startSingleGame();
                     }

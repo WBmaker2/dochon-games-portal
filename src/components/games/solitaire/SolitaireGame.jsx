@@ -22,8 +22,9 @@ import {
   Check
 } from 'lucide-react';
 import { soundFx } from '../../../utils/audio';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
-import { getHighScore } from '../../../utils/leaderboard';
+import { getLocalHighScore } from '../../../utils/leaderboardApi';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   SUITS,
   SUIT_KEYS,
@@ -56,7 +57,7 @@ export default function SolitaireGame({ onScoreSubmitted }) {
   const [moves, setMoves] = useState(0);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [highScore, setHighScore] = useState(() => getHighScore('solitaire') || 0);
+  const [highScore, setHighScore] = useState(() => getLocalHighScore('solitaire', 0) || 0);
 
   // Kid Friendly Features: Smart Hint, Dead-End Detection & Magic Shuffle
   const [hint, setHint] = useState(null);
@@ -64,14 +65,24 @@ export default function SolitaireGame({ onScoreSubmitted }) {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isTrackerOpen, setIsTrackerOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = soundFx;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isDeadEnd, setIsDeadEnd] = useState(false);
   const [magicShuffleCount, setMagicShuffleCount] = useState(0);
 
   // Victory & Auto Complete
   const [isWon, setIsWon] = useState(false);
   const [isAutoCompleting, setIsAutoCompleting] = useState(false);
-  const [studentName, setStudentName] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const { playerName: studentName, isSubmitted: submitted, setPlayerName: setStudentName, setIsSubmitted: setSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'solitaire', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // 🌟 4-King Free Slot Rule Check
   const kingColumnsCount = gameState.tableau.filter(col => col.length > 0 && col[0].rank === 13).length;
@@ -487,21 +498,7 @@ export default function SolitaireGame({ onScoreSubmitted }) {
   }, [isAutoCompleting, gameState, isWon]);
 
   // Hall of Fame Score Submission
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    const cleanName = studentName.trim();
-    if (!cleanName || score <= 100) return;
-
-    try {
-      await submitScoreToDB('solitaire', cleanName, score);
-      setSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Failed to submit solitaire score:', err);
-    }
-  };
+  
 
   // Format Time Helper
   const formatTime = (seconds) => {

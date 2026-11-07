@@ -7,8 +7,10 @@ import {
 import { PhysicsEngine } from './brickBreakerPhysics';
 import { brickAudio } from './brickBreakerAudio';
 import BrickBreakerHowToPlayModal from './BrickBreakerHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import ScoreSubmitForm from '../../../components/ScoreSubmitForm';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Volume2,
   VolumeX,
@@ -40,12 +42,21 @@ export default function BrickBreakerGame({ onScoreSubmitted }) {
   const [stageIndex, setStageIndex] = useState(0);
   const [lives, setLives] = useState(3);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = brickAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToOpen, setIsHowToOpen] = useState(false);
 
-  // Leaderboard Submit Form State
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
+  // Leaderboard Submit Form State (one shared hook instance for both overlays)
+  const scoreSubmit = useScoreSubmit({ gameKey: 'brickbreaker', score, onSubmitted: onScoreSubmitted });
 
   // Canvas and Engine Refs
   const canvasRef = useRef(null);
@@ -133,8 +144,7 @@ export default function BrickBreakerGame({ onScoreSubmitted }) {
     setScore(0);
     setLives(3);
     setStageIndex(0);
-    setHasSubmitted(false);
-    setPlayerName('');
+    scoreSubmit.resetSubmitState();
     engineRef.current.loadStage(STAGE_MAPS[0]);
     setGameState('READY');
   }, []);
@@ -283,26 +293,6 @@ export default function BrickBreakerGame({ onScoreSubmitted }) {
     if (moveIntervalRef.current) {
       clearInterval(moveIntervalRef.current);
       moveIntervalRef.current = null;
-    }
-  };
-
-  // Leaderboard Score Submit
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    const cleanName = playerName.trim();
-    if (!cleanName || isSubmitting) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('brickbreaker', cleanName, score);
-      setHasSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Failed to submit score:', err);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -458,35 +448,15 @@ export default function BrickBreakerGame({ onScoreSubmitted }) {
               </div>
             </div>
 
-            {/* Honor of School Leaderboard Submit Form (Only if score > 100) */}
-            {score > 100 && !hasSubmitted && (
-              <form onSubmit={handleScoreSubmit} className="bb-submit-form">
-                <span style={{ fontSize: '12px', color: '#FDE047', fontWeight: 800 }}>
-                  🏆 도촌초 실시간 명예의 전당 랭킹 등록
-                </span>
-                <div className="bb-input-row">
-                  <input
-                    type="text"
-                    value={playerName}
-                    onChange={e => setPlayerName(e.target.value)}
-                    placeholder="예: 홍길동"
-                    maxLength={10}
-                    className="bb-name-input"
-                    disabled={isSubmitting}
-                  />
-                  <button type="submit" disabled={isSubmitting || !playerName.trim()} className="bb-submit-btn">
-                    <Trophy style={{ width: '14px', height: '14px' }} />
-                    {isSubmitting ? '등록 중...' : '등록하기'}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {hasSubmitted && (
-              <div style={{ color: '#34D399', fontWeight: 800, fontSize: '13px', marginBottom: '14px' }}>
-                ✅ 명예의 전당에 점수가 성공적으로 등록되었습니다!
-              </div>
-            )}
+            <ScoreSubmitForm
+              score={score}
+              submitState={scoreSubmit}
+              formClassName="bb-submit-form"
+              inputClassName="bb-name-input"
+              buttonClassName="bb-submit-btn"
+              titleNode={<span style={{ fontSize: '12px', color: '#FDE047', fontWeight: 800 }}>🏆 도촌초 실시간 명예의 전당 랭킹 등록</span>}
+              successText="명예의 전당에 점수가 성공적으로 등록되었습니다!"
+            />
 
             <button onClick={resetGame} className="bb-btn-primary">
               <RotateCcw style={{ width: '18px', height: '18px' }} />
@@ -513,35 +483,15 @@ export default function BrickBreakerGame({ onScoreSubmitted }) {
               </div>
             </div>
 
-            {/* Honor of School Leaderboard Submit Form (Only if score > 100) */}
-            {score > 100 && !hasSubmitted && (
-              <form onSubmit={handleScoreSubmit} className="bb-submit-form">
-                <span style={{ fontSize: '12px', color: '#FDE047', fontWeight: 800 }}>
-                  🏆 도촌초 실시간 명예의 전당 랭킹 등록
-                </span>
-                <div className="bb-input-row">
-                  <input
-                    type="text"
-                    value={playerName}
-                    onChange={e => setPlayerName(e.target.value)}
-                    placeholder="예: 홍길동"
-                    maxLength={10}
-                    className="bb-name-input"
-                    disabled={isSubmitting}
-                  />
-                  <button type="submit" disabled={isSubmitting || !playerName.trim()} className="bb-submit-btn">
-                    <Trophy style={{ width: '14px', height: '14px' }} />
-                    {isSubmitting ? '등록 중...' : '등록하기'}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {hasSubmitted && (
-              <div style={{ color: '#34D399', fontWeight: 800, fontSize: '13px', marginBottom: '14px' }}>
-                ✅ 명예의 전당에 점수가 성공적으로 등록되었습니다!
-              </div>
-            )}
+            <ScoreSubmitForm
+              score={score}
+              submitState={scoreSubmit}
+              formClassName="bb-submit-form"
+              inputClassName="bb-name-input"
+              buttonClassName="bb-submit-btn"
+              titleNode={<span style={{ fontSize: '12px', color: '#FDE047', fontWeight: 800 }}>🏆 도촌초 실시간 명예의 전당 랭킹 등록</span>}
+              successText="명예의 전당에 점수가 성공적으로 등록되었습니다!"
+            />
 
             <button onClick={resetGame} className="bb-btn-primary">
               <RotateCcw style={{ width: '18px', height: '18px' }} />

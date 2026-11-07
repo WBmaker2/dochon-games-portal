@@ -8,6 +8,7 @@ export class FirebaseSignaling {
   constructor(gameId = 'ghoulduel') {
     this.gameId = gameId;
     this.heartbeatTimer = null;
+    this.watchdogTimer = null;
     this.eventSources = new Map(); // key -> EventSource
     this.pollTimers = new Map();   // key -> interval
   }
@@ -94,6 +95,44 @@ export class FirebaseSignaling {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
+    }
+  }
+
+  // --- Guest: Host heartbeat watchdog (used in relay mode where dc close
+  // events do not fire). Polls the room node; if the host heartbeat stays
+  // stale for staleAfterMs, calls onHostLost once.
+  startHostWatchdog(roomCode, onHostLost, staleAfterMs = 35000, intervalMs = 10000) {
+    this.stopHostWatchdog();
+    if (typeof onHostLost !== 'function') return;
+    const cleanCode = String(roomCode || '').trim();
+    const url = this._getRoomUrl(cleanCode);
+
+    this.watchdogTimer = setInterval(async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const room = await res.json();
+        if (!room || !room.host) {
+          this.stopHostWatchdog();
+          onHostLost();
+          return;
+        }
+        const now = Date.now();
+        const lastActive = room.heartbeat || room.host.createdAt || 0;
+        if (now - lastActive > staleAfterMs) {
+          this.stopHostWatchdog();
+          onHostLost();
+        }
+      } catch (e) {
+        // Tolerate transient network blips; the next tick retries.
+      }
+    }, intervalMs);
+  }
+
+  stopHostWatchdog() {
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
     }
   }
 
@@ -673,6 +712,7 @@ export class FirebaseSignaling {
   // --- General Cleanup for Listeners ---
   cleanup() {
     this.stopHeartbeat();
+    this.stopHostWatchdog();
     this.eventSources.forEach((es) => {
       try { es.close(); } catch (e) {}
     });

@@ -14,7 +14,8 @@ import {
   shuffleExistingTilesWithValidation,
   soundManager
 } from './colortileLogic';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
+import { useGlobalMuted } from '../../../components/AudioProvider';
 import ColorTileHowToPlayModal from './ColorTileHowToPlayModal';
 import './colortile.css';
 import {
@@ -58,12 +59,21 @@ export default function ColorTileGame({ onScoreSubmitted }) {
 
   // Audio & Modals
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = soundManager;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Leaderboard Registration State
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'colortile', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   const boardRef = useRef(null);
   const comboTimerRef = useRef(null);
@@ -324,23 +334,7 @@ export default function ColorTileGame({ onScoreSubmitted }) {
   };
 
   // Leaderboard Score Submit
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || score <= 100) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('colortile', playerName.trim(), score);
-      setIsSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Failed to submit score:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // Highlight calculations for hover cross lines
   const isCellInCrossHover = (r, c) => {

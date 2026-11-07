@@ -47,9 +47,21 @@ export default function GameCard({
     }
   };
 
+  const handleCardKeyDown = (e) => {
+    if (!isPlayable) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleCardClick();
+    }
+  };
+
   return (
     <div
       onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
+      role={isPlayable ? 'button' : undefined}
+      tabIndex={isPlayable ? 0 : undefined}
+      aria-label={isPlayable ? `${title} 게임 시작` : undefined}
       className={`game-tile-card ${isPlayable ? 'playable' : 'coming-soon'}`}
       style={{ maxWidth: '135px', width: '100%' }}
     >

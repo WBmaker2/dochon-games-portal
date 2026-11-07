@@ -5,10 +5,10 @@
 const getDonutAsset = (file) => `${import.meta.env.BASE_URL}assets/donut-tictactoe/${file}`;
 
 export const ASSETS = {
-  THUMB: getDonutAsset('thumb.jpg'),
-  PINK_DONUT: getDonutAsset('pink_donut.jpg'),
-  CHOCO_DONUT: getDonutAsset('choco_donut.jpg'),
-  BAKERY_BG: getDonutAsset('bakery_bg.jpg'),
+  THUMB: getDonutAsset('thumb.webp'),
+  PINK_DONUT: getDonutAsset('pink_donut.webp'),
+  CHOCO_DONUT: getDonutAsset('choco_donut.webp'),
+  BAKERY_BG: getDonutAsset('bakery_bg.webp'),
 };
 
 // 플레이어 정의

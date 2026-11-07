@@ -37,7 +37,7 @@ export const GNOME_CHARACTERS = [
     drag: 0.9975,
     dropSpeed: 12.0,
     avatarBadge: '🧙‍♂️',
-    spriteFile: 'gnome_classic.jpg',
+    spriteFile: 'gnome_classic.webp',
     stats: {
       power: 80,
       bounce: 75,
@@ -56,7 +56,7 @@ export const GNOME_CHARACTERS = [
     drag: 0.996,
     dropSpeed: 16.0,
     avatarBadge: '🧝',
-    spriteFile: 'gnome_heavy.jpg',
+    spriteFile: 'gnome_heavy.webp',
     stats: {
       power: 95,
       bounce: 95,
@@ -75,7 +75,7 @@ export const GNOME_CHARACTERS = [
     drag: 0.9988,
     dropSpeed: 9.0,
     avatarBadge: '🧚',
-    spriteFile: 'gnome_butterfly.jpg',
+    spriteFile: 'gnome_butterfly.webp',
     stats: {
       power: 70,
       bounce: 65,

@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PangolinGameLogic } from './pangolinLogic';
 import { pangolinAudio } from './pangolinAudio';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
+import { useGlobalMuted } from '../../../components/AudioProvider';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, STAGES } from './pangolinConstants';
 import PangolinHowToPlayModal from './PangolinHowToPlayModal';
 import { Play, RotateCcw, Volume2, VolumeX, HelpCircle, Trophy, Award, ArrowRight, Zap, Compass, ArrowUp, ArrowLeft, ChevronRight } from 'lucide-react';
@@ -34,13 +35,21 @@ export default function PangolinGame({ onScoreSubmitted }) {
 
   // Sound Settings
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = pangolinAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Score Submission State
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'pangolin', score: hudData.score, onSubmitted: onScoreSubmitted, variant: 'error' });
 
   // Initialize Game Logic instance
   useEffect(() => {
@@ -76,33 +85,7 @@ export default function PangolinGame({ onScoreSubmitted }) {
   };
 
   // Strict Dochon Portal Rule: Score > 100 & Placeholder '예: 홍길동'
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || isSubmitted) return;
-
-    setIsSubmitting(true);
-    setSubmitError('');
-
-    try {
-      const finalScore = hudData.score;
-      const success = await submitScoreToDB('pangolin', playerName.trim(), finalScore);
-
-      if (success) {
-        setIsSubmitted(true);
-        if (onScoreSubmitted) {
-          setTimeout(() => {
-            onScoreSubmitted();
-          }, 600);
-        }
-      } else {
-        setSubmitError('점수 등록에 실패했습니다. 다시 시도해주세요.');
-      }
-    } catch (err) {
-      setSubmitError('네트워크 오류가 발생했습니다.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // Keyboard Event Listeners
   useEffect(() => {

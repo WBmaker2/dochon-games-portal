@@ -15,8 +15,9 @@ import {
   SCORE_TIME_BONUS_PER_SEC,
   SCORE_ALL_CLEAR_BONUS
 } from './pizzaConstants';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Volume2,
   VolumeX,
@@ -64,13 +65,21 @@ export default function PizzaGame({ onScoreSubmitted }) {
 
   // Audio & How to play modal
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = pizzaAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Hall of Fame Leaderboard Submission States
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'pizza', score: score, onSubmitted: onScoreSubmitted, variant: 'error' });
 
   // Real-time animation loop (Capped at 30FPS for 50% GPU Reduction)
   const lastRenderTimeRef = useRef(0);
@@ -324,33 +333,7 @@ export default function PizzaGame({ onScoreSubmitted }) {
   };
 
   // Hall of Fame Leaderboard Submission
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting) return;
-
-    setIsSubmitting(true);
-    setSubmitError('');
-
-    try {
-      const res = await submitScoreToDB('pizza', playerName.trim(), score);
-      if (res) {
-        setIsSubmitted(true);
-        haptics.success();
-        pizzaAudio.playSuccess();
-        setTimeout(() => {
-          if (onScoreSubmitted) {
-            onScoreSubmitted();
-          }
-        }, 700);
-      } else {
-        setSubmitError('등록 중 오류가 발생했습니다. 다시 시도해주세요.');
-      }
-    } catch (err) {
-      setSubmitError('네트워크 오류가 발생했습니다.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // Sound Toggle
   const toggleMute = () => {

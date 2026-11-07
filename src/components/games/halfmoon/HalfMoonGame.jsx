@@ -19,8 +19,9 @@ import { halfMoonAudio } from './halfmoonAudio';
 import HalfMoonBoard from './HalfMoonBoard';
 import HalfMoonHand from './HalfMoonHand';
 import HalfMoonHowToPlayModal from './HalfMoonHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Trophy,
   Volume2,
@@ -46,6 +47,17 @@ export default function HalfMoonGame({ onScoreSubmitted }) {
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
   const [currentTurn, setCurrentTurn] = useState('PLAYER'); // 'PLAYER' | 'AI'
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = halfMoonAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Scores
@@ -62,9 +74,7 @@ export default function HalfMoonGame({ onScoreSubmitted }) {
   const [lastMoveSlot, setLastMoveSlot] = useState(null);
 
   // Leaderboard Registration States
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'halfmoon', score: totalGameScore, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   const currentStageConfig = STAGES[currentStageIndex] || STAGES[0];
 
@@ -283,26 +293,7 @@ export default function HalfMoonGame({ onScoreSubmitted }) {
   };
 
   // Leaderboard Score Submit
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || totalGameScore <= 100) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('halfmoon', playerName.trim(), totalGameScore);
-      setIsSubmitted(true);
-      haptics.success();
-      if (onScoreSubmitted) {
-        setTimeout(() => {
-          onScoreSubmitted();
-        }, 600);
-      }
-    } catch (err) {
-      console.error('Score submit error:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   return (
     <div className="halfmoon-game-root">

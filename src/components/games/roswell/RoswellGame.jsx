@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RoswellLogic } from './roswellLogic';
 import { roswellAudio } from './roswellAudio';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
+import { useGlobalMuted } from '../../../components/AudioProvider';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, REQUIRED_PARTS, SCENES } from './roswellConstants';
 import RoswellHowToPlayModal from './RoswellHowToPlayModal';
 import { Play, RotateCcw, Volume2, VolumeX, HelpCircle, Trophy, Sparkles, Compass, CheckCircle2, Send } from 'lucide-react';
@@ -26,13 +27,21 @@ export default function RoswellGame({ onScoreSubmitted }) {
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = roswellAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Leaderboard Submission States
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'roswell', score: logicRef.current ? logicRef.current.getFinalScore() : hudState.score, onSubmitted: onScoreSubmitted, variant: 'error' });
 
   // Synchronize Game State callback
   const handleLogicEvent = useCallback((state) => {
@@ -141,34 +150,7 @@ export default function RoswellGame({ onScoreSubmitted }) {
   };
 
   // Score Submit Handler (Strict Dochon Portal Rule: Score > 100 & Placeholder '예: 홍길동')
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || isSubmitted) return;
-
-    const finalScore = logicRef.current ? logicRef.current.getFinalScore() : hudState.score;
-    if (finalScore <= 100) return; // 100점 이하 차단
-
-    setIsSubmitting(true);
-    setSubmitError('');
-
-    try {
-      const success = await submitScoreToDB('roswell', playerName.trim(), finalScore);
-      if (success) {
-        setIsSubmitted(true);
-        if (onScoreSubmitted) {
-          setTimeout(() => {
-            onScoreSubmitted();
-          }, 600);
-        }
-      } else {
-        setSubmitError('점수 등록에 실패했습니다. 다시 시도해주세요.');
-      }
-    } catch (err) {
-      setSubmitError('네트워크 오류가 발생했습니다.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   const getSceneName = (sceneKey) => {
     switch (sceneKey) {

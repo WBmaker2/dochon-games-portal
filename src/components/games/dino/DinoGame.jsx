@@ -1,21 +1,33 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { soundFx } from '../../../utils/audio';
-import { saveScore, getHighScore } from '../../../utils/leaderboard';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { getLocalHighScore } from '../../../utils/leaderboardApi';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import { Play, Pause, RotateCcw, Volume2, VolumeX, Trophy, ArrowUp, ArrowDown, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, GROUND_Y, INITIAL_PLAYER_STATE, INITIAL_GAME_CONFIG } from './dinoConstants';
+import './dino.css';
 
 const baseUrl = import.meta.env.BASE_URL;
 
 export default function DinoGame({ onScoreSubmitted }) {
   const canvasRef = useRef(null);
   const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(() => getHighScore('dino'));
+  const [highScore, setHighScore] = useState(() => getLocalHighScore('dino', 1420));
   const [gameState, setGameState] = useState('IDLE');
   const [isMuted, setIsMuted] = useState(false);
-  const [studentName, setStudentName] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = soundFx;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
+  const { playerName: studentName, isSubmitted: submitted, setPlayerName: setStudentName, setIsSubmitted: setSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'dino', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
   const [comboBadge, setComboBadge] = useState('');
 
   // Asset references
@@ -57,7 +69,7 @@ export default function DinoGame({ onScoreSubmitted }) {
       loadImage(`${baseUrl}assets/dino/obs_backpack.png`),
       loadImage(`${baseUrl}assets/dino/obs_cone.png`),
       loadImage(`${baseUrl}assets/dino/obs_ghost.png`),
-      loadImage(`${baseUrl}assets/dino/bg_school.jpg`),
+      loadImage(`${baseUrl}assets/dino/bg_school.webp`),
     ]).then(([dinoRun, dinoJump, dinoDuck, dinoHurt, obsBackpack, obsCone, obsGhost, bgSchool]) => {
       assetsRef.current = {
         loaded: true,
@@ -379,7 +391,6 @@ export default function DinoGame({ onScoreSubmitted }) {
           setGameState('GAMEOVER');
           if (currentPts > highScore) {
             setHighScore(currentPts);
-            saveScore('dino', currentPts);
           }
           return;
         }
@@ -428,7 +439,6 @@ export default function DinoGame({ onScoreSubmitted }) {
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       }
-
 
       // 2. Draw Athletic Track & Ground Line
       if (!assets.bgSchool || !assets.bgSchool.complete) {
@@ -587,13 +597,7 @@ export default function DinoGame({ onScoreSubmitted }) {
     return () => cancelAnimationFrame(animationFrameId);
   }, [gameState, highScore]);
 
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!studentName.trim() || score <= 100) return;
-    await submitScoreToDB('dino', studentName, score);
-    setSubmitted(true);
-    if (onScoreSubmitted) onScoreSubmitted();
-  };
+  
 
   return (
     <div className="dino-container">

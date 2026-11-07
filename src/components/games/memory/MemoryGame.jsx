@@ -3,8 +3,9 @@ import {
   Trophy, RotateCcw, Volume2, VolumeX, HelpCircle, Sparkles, 
   Brain, Music, Layers, Zap, Clock, Award, CheckCircle2, AlertCircle, Play, ChevronRight 
 } from 'lucide-react';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import { 
   GAME_MODES, CARD_THEMES, CARD_DIFFICULTIES, SIMON_BUTTONS 
 } from './memoryConstants';
@@ -20,12 +21,21 @@ export default function MemoryGame({ onScoreSubmitted }) {
   const [gameWon, setGameWon] = useState(false);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = memoryAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
 
   // Common Score & Leaderboard Submission
   const [score, setScore] = useState(0);
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const { isSubmitted: submitSuccess, setIsSubmitted: setSubmitSuccess, playerName, setPlayerName, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'memory', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
   const [combo, setCombo] = useState(0);
   const [maxCombo, setMaxCombo] = useState(0);
   const [comboText, setComboText] = useState('');
@@ -307,26 +317,7 @@ export default function MemoryGame({ onScoreSubmitted }) {
   // ====================================================
   // Submit High Score to Leaderboard
   // ====================================================
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || score <= 100) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('memory', playerName.trim(), score);
-      setSubmitSuccess(true);
-      haptics.success();
-
-      // Trigger automatic tab switch in Leaderboard modal
-      if (onScoreSubmitted) {
-        onScoreSubmitted('memory');
-      }
-    } catch (err) {
-      console.error('Score submission error:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // Get exact CSS class for Grid Columns
   const getGridClass = () => {

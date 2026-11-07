@@ -16,7 +16,7 @@ import {
   calculateRoundScore
 } from './donutTicTacToeLogic';
 import DonutTicTacToeHowToPlayModal from './DonutTicTacToeHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   RotateCcw,
   HelpCircle,
@@ -52,9 +52,7 @@ export default function DonutTicTacToeGame({ onScoreSubmitted }) {
   const [stats, setStats] = useState({ wins: 0, losses: 0, draws: 0 });
 
   // --- 명예의 전당 점수 등록 상태 ---
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const { isSubmitted: hasSubmitted, setIsSubmitted: setHasSubmitted, playerName, setPlayerName, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'tictactoe', score: totalScore, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // 새 라운드 시작 (보드 초기화)
   const startNewRound = useCallback((resetStats = false) => {
@@ -190,23 +188,7 @@ export default function DonutTicTacToeGame({ onScoreSubmitted }) {
   }, [turn, opponentType, board, gameMode, aiDifficulty, gameResult]);
 
   // 명예의 전당 점수 제출 핸들러 (100점 초과 시)
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || totalScore <= 100) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('tictactoe', playerName.trim(), totalScore);
-      setHasSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('점수 등록 오류:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   return (
     <div

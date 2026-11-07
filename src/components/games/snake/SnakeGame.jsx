@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { soundFx } from '../../../utils/audio';
-import { saveScore, getHighScore } from '../../../utils/leaderboard';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
+import { getLocalHighScore } from '../../../utils/leaderboardApi';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import { haptics } from '../../../utils/haptics';
 import {
   Play,
@@ -32,16 +33,27 @@ import {
   ITEM_TYPES,
   SNAKE_THEMES
 } from './snakeConstants';
+import './snake.css';
 
 export default function SnakeGame({ onScoreSubmitted }) {
   const canvasRef = useRef(null);
   const [score, setScore] = useState(0);
   const [applesEaten, setApplesEaten] = useState(0);
-  const [highScore, setHighScore] = useState(() => getHighScore('snake'));
+  const [highScore, setHighScore] = useState(() => getLocalHighScore('snake', 680));
   const [gameState, setGameState] = useState('IDLE');
   const [isMuted, setIsMuted] = useState(false);
-  const [studentName, setStudentName] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = soundFx;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
+  const { playerName: studentName, isSubmitted: submitted, setPlayerName: setStudentName, setIsSubmitted: setSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'snake', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
   const [comboBadge, setComboBadge] = useState('');
   const [gameOverReason, setGameOverReason] = useState('장애물에 충돌했습니다!');
   const [snakeLength, setSnakeLength] = useState(INITIAL_SNAKE.length);
@@ -215,13 +227,7 @@ export default function SnakeGame({ onScoreSubmitted }) {
   }, [gameState, restartGame, changeDirection]);
 
   // Score Submit Handler
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!studentName.trim() || score <= 100) return;
-    await submitScoreToDB('snake', studentName, score);
-    setSubmitted(true);
-    if (onScoreSubmitted) onScoreSubmitted();
-  };
+  
 
   // Main 60fps Animation and Fixed-Interval Tick Loop
   useEffect(() => {
@@ -268,7 +274,6 @@ export default function SnakeGame({ onScoreSubmitted }) {
         setGameState('GAMEOVER');
         if (s.scoreVal > highScore) {
           setHighScore(s.scoreVal);
-          saveScore('snake', s.scoreVal);
         }
         return;
       }
@@ -281,7 +286,6 @@ export default function SnakeGame({ onScoreSubmitted }) {
           setGameState('GAMEOVER');
           if (s.scoreVal > highScore) {
             setHighScore(s.scoreVal);
-            saveScore('snake', s.scoreVal);
           }
           return;
         }
@@ -295,7 +299,6 @@ export default function SnakeGame({ onScoreSubmitted }) {
           setGameState('GAMEOVER');
           if (s.scoreVal > highScore) {
             setHighScore(s.scoreVal);
-            saveScore('snake', s.scoreVal);
           }
           return;
         }

@@ -31,7 +31,8 @@ import { PirateCoinLogic } from './pirateCoinLogic.js';
 import { pirateAudio } from './pirateCoinAudio.js';
 import { pirateNet } from './pirateCoinNetwork.js';
 import PirateCoinHowToPlayModal from './PirateCoinHowToPlayModal.jsx';
-import { submitScoreToDB } from '../../../utils/leaderboardApi.js';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
+import { useGlobalMuted } from '../../../components/AudioProvider';
 import './piratecoin.css';
 
 export default function PirateCoinGame({ onScoreSubmitted, onBackToLobby, isMuted: parentMuted = false }) {
@@ -48,6 +49,8 @@ export default function PirateCoinGame({ onScoreSubmitted, onBackToLobby, isMute
   const [isHost, setIsHost] = useState(false);
   const [lobbyPlayers, setLobbyPlayers] = useState([]);
   const [networkStatus, setNetworkStatus] = useState('');
+  const [networkError, setNetworkError] = useState('');
+  const [copiedCode, setCopiedCode] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
   // In-game HUD States
@@ -58,14 +61,22 @@ export default function PirateCoinGame({ onScoreSubmitted, onBackToLobby, isMute
   const [standings, setStandings] = useState([]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const [isAudioMuted, setIsAudioMuted] = useState(parentMuted);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsAudioMuted(globalMuted);
+    const engine = pirateAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
 
   // Game Over States
   const [finalRankings, setFinalRankings] = useState([]);
   const [finalScore, setFinalScore] = useState(0);
-  const [submitName, setSubmitName] = useState(playerName);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const { isSubmitted: hasSubmitted, setIsSubmitted: setHasSubmitted, playerName: submitName, setPlayerName: setSubmitName, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'piratecoin', score: finalScore, onSubmitted: onScoreSubmitted, variant: 'error', initialName: playerName });
 
   // Canvas Refs
   const canvasRef = useRef(null);
@@ -141,7 +152,7 @@ export default function PirateCoinGame({ onScoreSubmitted, onBackToLobby, isMute
 
     pirateNet.onError = (err) => {
       setIsConnecting(false);
-      alert(err.message || '네트워크 연결 오류');
+      setNetworkError(err.message || '네트워크 연결 오류');
     };
 
     return () => {
@@ -224,8 +235,18 @@ export default function PirateCoinGame({ onScoreSubmitted, onBackToLobby, isMute
     }
   };
 
+  const handleCopyCode = () => {
+    if (!activeRoomCode) return;
+    try {
+      navigator.clipboard.writeText(activeRoomCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch (e) {}
+  };
+
   // --- Host Room Action ---
   const handleHostRoom = async () => {
+    setNetworkError('');
     setIsConnecting(true);
     try {
       const code = await pirateNet.createHostRoom(roomCodeInput, playerName, selectedShip);
@@ -240,9 +261,10 @@ export default function PirateCoinGame({ onScoreSubmitted, onBackToLobby, isMute
   // --- Join Room Action ---
   const handleJoinRoom = async () => {
     if (!roomCodeInput || roomCodeInput.trim().length !== 4) {
-      alert('4자리 숫자 방 코드를 입력해 주세요. (예: 1234)');
+      setNetworkError('4자리 숫자 방 코드를 입력해 주세요. (예: 1234)');
       return;
     }
+    setNetworkError('');
     setIsConnecting(true);
     try {
       const code = await pirateNet.joinGuestRoom(roomCodeInput, playerName, selectedShip);
@@ -272,34 +294,7 @@ export default function PirateCoinGame({ onScoreSubmitted, onBackToLobby, isMute
   }, []);
 
   // --- Score Submission to Honor Roll Leaderboard ---
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!submitName.trim()) {
-      setSubmitError('선장님의 이름을 입력해 주세요.');
-      return;
-    }
-    if (finalScore <= 100) {
-      setSubmitError('100점 이하의 점수는 명예의 전당에 등록되지 않습니다.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setSubmitError('');
-
-    try {
-      await submitScoreToDB('piratecoin', submitName.trim(), finalScore);
-      setHasSubmitted(true);
-      setIsSubmitting(false);
-
-      // Trigger global modal switch to 'piratecoin' tab immediately
-      if (onScoreSubmitted) {
-        onScoreSubmitted('piratecoin');
-      }
-    } catch (err) {
-      setSubmitError('점수 등록 중 오류가 발생했습니다. 다시 시도해 주세요.');
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // --- Main Animation & Render Loop ---
   useEffect(() => {
@@ -928,6 +923,14 @@ export default function PirateCoinGame({ onScoreSubmitted, onBackToLobby, isMute
                     <div className="mt-2 p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl text-center">
                       <div className="text-xs text-amber-300 font-bold">내 방 번호 (친구에게 알려주세요)</div>
                       <div className="text-3xl font-black text-amber-400 tracking-widest my-1">{activeRoomCode}</div>
+                      <button
+                        type="button"
+                        className="pirate-btn-secondary"
+                        onClick={handleCopyCode}
+                        style={{ marginTop: '4px', fontSize: '12px' }}
+                      >
+                        {copiedCode ? '복사됨!' : '방 번호 복사'}
+                      </button>
                       <div className="text-xs text-slate-300">
                         선원 접속 현황: {lobbyPlayers.length} / 4명
                       </div>
@@ -946,6 +949,10 @@ export default function PirateCoinGame({ onScoreSubmitted, onBackToLobby, isMute
                         </div>
                       )}
                     </div>
+                  )}
+
+                  {networkError && (
+                    <div className="text-xs font-bold text-rose-300 text-center mt-1">❌ {networkError}</div>
                   )}
 
                   {networkStatus && (

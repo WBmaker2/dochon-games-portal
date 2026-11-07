@@ -102,6 +102,14 @@ export class PirateCoinNetworkManager {
   }
 
   // --- Host: Create Room in Firebase RTDB ---
+  // --- Host heartbeat watchdog (guest side; covers relay mode): ---
+  _startGuestWatchdog(roomCode) {
+    this.signaling.startHostWatchdog(roomCode, () => {
+      this.emitStatus('방장과의 연결이 끊어졌습니다. 대기실로 돌아갑니다.');
+      if (this.onDisconnect) this.onDisconnect('방장과의 연결이 끊어졌습니다.');
+    });
+  }
+
   async createHostRoom(numericCode, hostName, shipClass = 'caravel') {
     this.destroy();
     this.isHost = true;
@@ -431,6 +439,7 @@ export class PirateCoinNetworkManager {
                 this.emitStatus('🎉 안전 릴레이 모드로 대기실 탑승 완료!');
                 this._notifyLobby();
                 settle('resolve', cleanCode);
+            this._startGuestWatchdog(cleanCode);
               }
             } else {
               this._handleGuestReceivedData(data);
@@ -492,6 +501,7 @@ export class PirateCoinNetworkManager {
               this.signaling.cleanupGuestSignaling(this.roomCode, this.myPeerId);
             }
             settle('resolve', cleanCode);
+            this._startGuestWatchdog(cleanCode);
           }
         };
 

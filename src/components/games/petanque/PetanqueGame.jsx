@@ -12,8 +12,9 @@ import {
 import { PetanqueEngine } from './PetanqueEngine';
 import { petanqueAudio } from './petanqueAudio';
 import PetanqueHowToPlayModal from './PetanqueHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Trophy,
   Volume2,
@@ -39,6 +40,17 @@ export default function PetanqueGame({ onScoreSubmitted }) {
   const [currentRound, setCurrentRound] = useState(1);
   const [difficulty, setDifficulty] = useState(AI_DIFFICULTY.NORMAL);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = petanqueAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Match Scores
@@ -65,9 +77,7 @@ export default function PetanqueGame({ onScoreSubmitted }) {
   const [roundResultInfo, setRoundResultInfo] = useState(null);
 
   // Leaderboard Registration States
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'petanque', score: scores.totalFinalScore, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // Canvas & Engine References
   const canvasRef = useRef(null);
@@ -490,28 +500,7 @@ export default function PetanqueGame({ onScoreSubmitted }) {
   }, [gameState, currentTurnTeam, isChargingPower]);
 
   // Handle Leaderboard Score Submission
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || isSubmitted) return;
-
-    setIsSubmitting(true);
-    try { haptics.medium(); } catch (e) {}
-
-    const cleanName = playerName.trim();
-    const finalScore = scores.totalFinalScore;
-
-    try {
-      await submitScoreToDB('petanque', cleanName, finalScore);
-      setIsSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Score submit error:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // Sound Toggle
   const toggleMute = () => {

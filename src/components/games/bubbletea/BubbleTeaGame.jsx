@@ -14,8 +14,9 @@ import {
   RATING_CONFIG,
   TOTAL_CUSTOMERS_PER_DAY
 } from './bubbleTeaConstants';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import { Volume2, VolumeX, HelpCircle, RotateCcw, Trophy, Star, Sparkles, Check, Heart, Play } from 'lucide-react';
 import './bubbletea.css';
 
@@ -45,13 +46,21 @@ export default function BubbleTeaGame({ onScoreSubmitted }) {
 
   // Sound & Modals
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = bubbleTeaAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
 
   // Leaderboard Submission
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'bubbletea', score: score, onSubmitted: onScoreSubmitted, variant: 'error' });
 
   // Refs for real-time loop synchronization
   const isPouringRef = useRef(false);
@@ -375,37 +384,7 @@ export default function BubbleTeaGame({ onScoreSubmitted }) {
   };
 
   // Hall of Fame Leaderboard Submission
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting || isSubmitted) return;
-
-    const trimmedName = playerName.trim();
-    if (!trimmedName) {
-      setSubmitError('이름을 입력해주세요!');
-      return;
-    }
-
-    if (score <= 100) {
-      setSubmitError('100점을 초과해야 명예의 전당에 등록할 수 있습니다.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setSubmitError('');
-
-    try {
-      await submitScoreToDB('bubbletea', trimmedName, score);
-      setIsSubmitted(true);
-      haptics.heavy();
-      if (typeof onScoreSubmitted === 'function') {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      setSubmitError('점수 등록 중 오류가 발생했습니다.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   return (
     <div className="bubbletea-container">

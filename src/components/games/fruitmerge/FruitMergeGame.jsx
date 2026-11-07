@@ -14,8 +14,9 @@ import {
 import { fruitAudio } from './fruitMergeAudio';
 import { PhysicsEngine, Fruit } from './fruitMergePhysics';
 import FruitMergeHowToPlayModal from './FruitMergeHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import './fruitmerge.css';
 import {
   Volume2,
@@ -47,6 +48,17 @@ export default function FruitMergeGame({ onScoreSubmitted }) {
   });
   const [maxFruitLevel, setMaxFruitLevel] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = fruitAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [shakeCount, setShakeCount] = useState(2); // 2 emergency shakes per game
 
@@ -56,9 +68,7 @@ export default function FruitMergeGame({ onScoreSubmitted }) {
   const [canDrop, setCanDrop] = useState(true);
 
   // Leaderboard Form State
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const { isSubmitted: submitSuccess, setIsSubmitted: setSubmitSuccess, playerName, setPlayerName, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit } = useScoreSubmit({ gameKey: 'fruitmerge', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // Canvas & Physics Refs
   const canvasRef = useRef(null);
@@ -373,27 +383,7 @@ export default function FruitMergeGame({ onScoreSubmitted }) {
   };
 
   // Submit High Score to Leaderboard DB
-  const handleScoreSubmit = async (e) => {
-    e.preventDefault();
-    if (score <= 100 || isSubmitting) return;
-
-    const cleanName = playerName.trim() || '도촌 학생';
-    setIsSubmitting(true);
-
-    try {
-      await submitScoreToDB('fruitmerge', cleanName, score);
-      setSubmitSuccess(true);
-      if (onScoreSubmitted) {
-        setTimeout(() => {
-          onScoreSubmitted();
-        }, 600);
-      }
-    } catch (err) {
-      console.error('Score submission error:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   const nextFruitData = FRUITS[nextLevel];
 

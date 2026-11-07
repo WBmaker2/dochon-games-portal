@@ -12,8 +12,9 @@ import {
   DIFFICULTY_PRESETS
 } from './snowballConstants';
 import SnowballHowToPlayModal from './SnowballHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Trophy, RotateCcw, Volume2, VolumeX, HelpCircle,
   Sparkles, Play, Users, Globe, Copy, Check, LogOut,
@@ -33,6 +34,17 @@ export default function SnowballGame({ onScoreSubmitted }) {
   const [selectedSkin, setSelectedSkin] = useState('penguin');
   const [difficulty, setDifficulty] = useState('normal');
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = snowballAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   // In-Game Live HUD Stats
@@ -61,9 +73,7 @@ export default function SnowballGame({ onScoreSubmitted }) {
 
   // Game Over & Hall of Fame Form State
   const [gameResult, setGameResult] = useState(null);
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { playerName, setPlayerName, isSubmitted, setIsSubmitted, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'snowball', score: gameResult.totalScore, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // Touch Virtual Joystick State
   const joystickRef = useRef(null);
@@ -350,31 +360,7 @@ export default function SnowballGame({ onScoreSubmitted }) {
   };
 
   // Submit Score to Hall of Fame (P2P Mode ONLY, score > 100, placeholder: '예: 홍길동')
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    // STRICT RULE: Only P2P matches are eligible for Hall of Fame
-    if (playMode !== 'P2P') return;
-    if (!gameResult || gameResult.totalScore <= 100) return;
-    if (!playerName.trim() || isSubmitting || isSubmitted) return;
-
-    setIsSubmitting(true);
-    try {
-      await submitScoreToDB('snowball', playerName.trim(), gameResult.totalScore);
-      setIsSubmitted(true);
-      haptics.success();
-
-      // Trigger Portal Leaderboard Modal with auto-tab sync
-      if (onScoreSubmitted) {
-        setTimeout(() => {
-          onScoreSubmitted('snowball');
-        }, 400);
-      }
-    } catch (err) {
-      console.error('Score submission error:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // Return to Lobby
   const handleBackToLobby = () => {
@@ -628,8 +614,21 @@ export default function SnowballGame({ onScoreSubmitted }) {
                     </div>
 
                     {p2pPlayers.length > 0 && (
-                      <div style={{ textAlign: 'center', padding: '10px', color: '#34D399', fontWeight: 700 }}>
-                        방에 접속되었습니다! 방장이 게임을 시작할 때까지 잠시 대기해주세요...
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ textAlign: 'center', padding: '10px', color: '#34D399', fontWeight: 700 }}>
+                          방에 접속되었습니다! 방장이 게임을 시작할 때까지 잠시 대기해주세요...
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#10B981', fontWeight: 700 }}>
+                          참여 인원 ({p2pPlayers.length}/8)
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {p2pPlayers.map((p, i) => (
+                            <div key={p.id || i} style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between' }}>
+                              <span>{p.name} {p.isHost && '👑'}</span>
+                              <span style={{ color: '#94A3B8' }}>Ready</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </>

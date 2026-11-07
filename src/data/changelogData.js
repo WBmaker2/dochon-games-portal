@@ -3,6 +3,98 @@
 
 export const CHANGELOG_DATA = [
   {
+    version: 'v1.57.0',
+    date: '2026-11-07',
+    title: '👥 멀티플레이어 안정성 개선 (연결 감시·방 안내·이동 편성)',
+    badge: 'UPDATE',
+    badgeColor: 'blue',
+    items: [
+      {
+        tag: 'CONNECTION WATCH',
+        tagColor: 'emerald',
+        text: '[방장 연결 끊김 자동 감지] 친구와 대결 중 방장 연결이 끊기면 자동으로 알려주고 대기실로 안내합니다'
+      },
+      {
+        tag: 'CONNECTIVITY',
+        tagColor: 'amber',
+        text: '[다양한 접속 환경 지원] 고스트 아레나의 중계 서버 풀을 강화해 학교 전산망 등 제한적인 네트워크에서도 연결이 원활해집니다'
+      },
+      {
+        tag: 'LOBBY UX',
+        tagColor: 'blue',
+        text: '[대기실 안내 개선] 방 번호 복사 버튼, 대기 명단 표시, 오류 안내를 화면 안에서 바로 확인할 수 있도록 개선했습니다'
+      },
+      {
+        tag: 'REMATCH',
+        tagColor: 'emerald',
+        text: '[리매치 편성 개선] 경기 결과 화면에서 같은 방으로 바로 다시 시작할 수 있도록 시작 흐름을 통일했습니다'
+      }
+    ]
+  },
+  {
+    version: 'v1.56.0',
+    date: '2026-11-07',
+    title: '🔗 전체 게임 점수 등록 공용화 및 전역 음소거 동기화 완료',
+    badge: 'UPDATE',
+    badgeColor: 'blue',
+    items: [
+      {
+        tag: 'SHARED SCORE FORM',
+        tagColor: 'emerald',
+        text: '[전체 35개 게임 점수 등록 공용화 완료] 모든 게임에서 동일한 점수 등록 흐름을 사용해, 어느 게임에서든 명예의 전당 등록이 일관되게 동작합니다'
+      },
+      {
+        tag: 'SCORE SAFETY',
+        tagColor: 'amber',
+        text: '[점수 등록 안내 개선] 등록에 실패한 경우 화면에 안내 메시지가 표시되어 다시 시도할 수 있습니다'
+      },
+      {
+        tag: 'GLOBAL SOUND',
+        tagColor: 'blue',
+        text: '[전체 효과음 동기화] 상단의 음소거 버튼이 이제 모든 게임의 효과음에 동시에 적용됩니다'
+      }
+    ]
+  },
+  {
+    version: 'v1.55.0',
+    date: '2026-11-07',
+    title: '🔧 포털 안정성·속도 개선 및 신규 기반 시스템 도입 (점수 등록 공유화, 딥링크 지원)',
+    badge: 'UPDATE',
+    badgeColor: 'blue',
+    items: [
+      {
+        tag: 'STABILITY',
+        tagColor: 'emerald',
+        text: '[별도 랭킹 창 통합 및 안전 표시] 명예의 전당 별도 랭킹 창을 하나로 통합하고, 점수와 이름이 안전하게 표시되도록 개선했습니다'
+      },
+      {
+        tag: 'SCORE SAFETY',
+        tagColor: 'amber',
+        text: '[점수 기록 보호] 정상적인 점수 등록만 받아들이도록 보호 규칙을 강화해 명예의 전당 기록이 더 안정적으로 유지됩니다'
+      },
+      {
+        tag: 'SHARED SCORE FORM',
+        tagColor: 'blue',
+        text: '[공용 점수 등록 폼 도입] 도촌 테트리스와 벽돌 깨기에 공용 점수 등록 폼을 먼저 적용해, 앞으로 모든 게임에서 일관된 등록 경험을 제공합니다'
+      },
+      {
+        tag: 'DEEP LINK',
+        tagColor: 'purple',
+        text: '[게임 딥링크 지원] 주소에 게임 이름(?game=tetris)을 붙여 친구를 초대하거나 새로고침해도 바로 그 게임으로 이어집니다'
+      },
+      {
+        tag: 'ACCESSIBILITY',
+        tagColor: 'emerald',
+        text: '[접근성 개선] 키보드 포커스 표시, 화면 움직임 줄이기 설정 지원, 화면 확대 허용, Esc 키로 창 닫기 등 학생 누구나 편하게 이용할 수 있도록 개선했습니다'
+      },
+      {
+        tag: 'PERFORMANCE',
+        tagColor: 'amber',
+        text: '[실행 속도 개선] 게임 썸네일과 배경 이미지를 가볍게 바꿔 전체 용량을 약 60MB에서 7MB로 줄여 더 빨리 열립니다'
+      }
+    ]
+  },
+  {
     version: 'v1.54.0',
     date: '2026-10-11',
     title: '🧱 [도촌 테트리스] 35번째 신작 클래식 아케이드 정식 개장 및 실시간 클라우드 명예의 전당 연동',

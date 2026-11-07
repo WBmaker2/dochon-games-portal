@@ -15,8 +15,9 @@ import {
 } from './kidsCodingEngine';
 import { kidsCodingAudio } from './kidsCodingAudio';
 import KidsCodingHowToPlayModal from './KidsCodingHowToPlayModal';
-import { submitScoreToDB } from '../../../utils/leaderboardApi';
 import { haptics } from '../../../utils/haptics';
+import { useGlobalMuted } from '../../../components/AudioProvider';
+import { useScoreSubmit } from '../../../hooks/useScoreSubmit';
 import {
   Volume2,
   VolumeX,
@@ -54,6 +55,17 @@ export default function KidsCodingGame({ onScoreSubmitted }) {
   // Stage Scores & Star Ratings Map: { [stageId]: { stars: number, score: number } }
   const [clearedStages, setClearedStages] = useState({});
   const [isMuted, setIsMuted] = useState(false);
+  const { muted: globalMuted } = useGlobalMuted();
+  useEffect(() => {
+    setIsMuted(globalMuted);
+    const engine = kidsCodingAudio;
+    if (!engine) return;
+    if (typeof engine.setMuted === 'function') {
+      engine.setMuted(globalMuted);
+    } else if (typeof engine.toggleMute === 'function' && engine.isMuted !== globalMuted) {
+      engine.toggleMute();
+    }
+  }, [globalMuted]);
   const [isHowToOpen, setIsHowToOpen] = useState(false);
 
   // Coding Workspace State
@@ -70,9 +82,7 @@ export default function KidsCodingGame({ onScoreSubmitted }) {
   const [rabbitJumping, setRabbitJumping] = useState(false);
 
   // Leaderboard Submission States
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const { isSubmitted: hasSubmitted, setIsSubmitted: setHasSubmitted, playerName, setPlayerName, isSubmitting, setIsSubmitting, submitError, setSubmitError, handleScoreSubmit: handleSubmitScore } = useScoreSubmit({ gameKey: 'kidscoding', score: score, onSubmitted: onScoreSubmitted, variant: 'silent' });
 
   // Execution Timer Ref
   const runTimerRef = useRef(null);
@@ -382,25 +392,7 @@ export default function KidsCodingGame({ onScoreSubmitted }) {
   };
 
   // Leaderboard Form Submit (Rule Compliant: placeholder '예: 홍길동', > 100 pts)
-  const handleSubmitScore = async (e) => {
-    e.preventDefault();
-    if (!playerName.trim() || isSubmitting || hasSubmitted || score <= 100) return;
-
-    setIsSubmitting(true);
-    haptics.medium();
-
-    try {
-      await submitScoreToDB('kidscoding', playerName.trim(), score);
-      setHasSubmitted(true);
-      if (onScoreSubmitted) {
-        onScoreSubmitted();
-      }
-    } catch (err) {
-      console.error('Failed to submit score:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  
 
   // Helper renderer for block items in script workspace
   const renderBlockItem = (block, parentLoopId = null) => {
