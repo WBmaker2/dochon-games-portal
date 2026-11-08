@@ -70,6 +70,38 @@ export default function SnowballGame({ onScoreSubmitted }) {
   const [p2pStatus, setP2pStatus] = useState('');
   const [p2pError, setP2pError] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
+  const [availableRooms, setAvailableRooms] = useState([]);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [isSpectator, setIsSpectator] = useState(false);
+
+  useEffect(() => {
+    try {
+      const room = new URLSearchParams(window.location.search).get('room');
+      if (room && /^\d{4}$/.test(room)) {
+        setJoinCodeInput(room);
+        setP2pSubtab('JOIN');
+        setPlayMode('P2P');
+      }
+    } catch {}
+  }, []);
+
+  const loadRoomList = async () => {
+    try {
+      const rooms = await snowballNet.signaling.listRooms();
+      setAvailableRooms(rooms);
+    } catch {}
+  };
+
+  const copyInviteLink = async () => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('game', 'snowball');
+      url.searchParams.set('room', p2pCode);
+      await navigator.clipboard.writeText(url.toString());
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 2000);
+    } catch {}
+  };
 
   // Game Over & Hall of Fame Form State
   const [gameResult, setGameResult] = useState(null);
@@ -304,7 +336,7 @@ export default function SnowballGame({ onScoreSubmitted }) {
 
     setP2pConnecting(true);
     setP2pError('');
-    setP2pStatus('방 연결 시도 중...');
+    setP2pStatus(isSpectator ? '👁️ 관전으로 방에 접속 중...' : '방 연결 시도 중...');
 
     try {
       snowballNet.onLobbyUpdate = (players) => {
@@ -554,6 +586,16 @@ export default function SnowballGame({ onScoreSubmitted }) {
                       <div className="snowball-code-hero-hint">
                         친구들은 아래 [코드로 참가하기] 탭에서 위 4자리 번호를 입력하면 즉시 입장합니다!
                       </div>
+                      <button
+                        className={`snowball-hero-copy-btn ${inviteCopied ? 'copied' : ''}`}
+                        onClick={copyInviteLink}
+                        title="초대 링크 복사"
+                        style={{ marginTop: '8px', width: '100%', justifyContent: 'center' }}
+                      >
+                        {inviteCopied ? <Check size={14} color="#10B981" /> : <Copy size={14} />}
+                        <span>{inviteCopied ? '초대 링크 복사 완료!' : '🔗 초대 링크 복사 (친구에게 공유)'}</span>
+                      </button>
+                      <p style={{ fontSize: '11px', color: '#64748B', marginTop: '6px' }}>🤖 혼자 하고 싶으면 위 [솔로 서바이벌 vs AI 7인]에서 바로 시작할 수 있어요.</p>
                     </div>
 
                     {p2pPlayers.length === 0 ? (
@@ -594,6 +636,22 @@ export default function SnowballGame({ onScoreSubmitted }) {
                 {/* Subtab 2: Join Room */}
                 {p2pSubtab === 'JOIN' && (
                   <>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '12px', color: '#BAE6FD', fontWeight: 800 }}>🔓 열린 방 목록</span>
+                      <button onClick={loadRoomList} style={{ padding: '6px 10px', borderRadius: '8px', background: 'rgba(2,132,199,0.2)', color: '#7DD3FC', border: '1px solid rgba(56,189,248,0.3)', cursor: 'pointer', fontSize: '12px' }}>새로고침</button>
+                    </div>
+                    {availableRooms.length === 0 ? (
+                      <p style={{ fontSize: '12px', color: '#64748B', margin: '0 0 8px' }}>열린 방이 없어요. 새로고침을 눌러보세요.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px', maxHeight: '120px', overflowY: 'auto' }}>
+                        {availableRooms.map((r) => (
+                          <button key={r.code} onClick={() => { setJoinCodeInput(r.code); setIsSpectator(false); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: '10px', background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(56,189,248,0.3)', color: '#E0F2FE', cursor: 'pointer' }}>
+                            <span>👑 {r.hostName} · {r.code}</span>
+                            <span style={{ fontSize: '11px', color: '#94A3B8' }}>대기 {r.guestCount}명</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="snowball-input-row">
                       <input
                         type="text"
@@ -612,6 +670,10 @@ export default function SnowballGame({ onScoreSubmitted }) {
                         {p2pConnecting ? '접속 중...' : '입장'}
                       </button>
                     </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#BAE6FD', cursor: 'pointer', marginTop: '4px' }}>
+                      <input type="checkbox" checked={isSpectator} onChange={(e) => setIsSpectator(e.target.checked)} />
+                      👁️ 관전 모드 (조작 없이 보기만, 이 방에서는 입력이 전송되지 않음)
+                    </label>
 
                     {p2pPlayers.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

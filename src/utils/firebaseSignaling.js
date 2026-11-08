@@ -136,6 +136,27 @@ export class FirebaseSignaling {
     }
   }
 
+  async listRooms(now = Date.now()) {
+    try {
+      const res = await fetch(`${DB_BASE_URL}/${this.gameId}.json`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!data || typeof data !== 'object') return [];
+      return Object.entries(data)
+        .filter(([, room]) => room && room.host && room.status === 'lobby')
+        .filter(([, room]) => now - (room.heartbeat || room.host.createdAt || 0) < 35000)
+        .map(([code, room]) => ({
+          code: String(code),
+          hostName: room.host.name || '방장',
+          guestCount: room.guests ? Object.keys(room.guests).length : 0,
+          heartbeat: room.heartbeat || 0
+        }))
+        .sort((a, b) => b.heartbeat - a.heartbeat);
+    } catch {
+      return [];
+    }
+  }
+
   // --- Guest: Check Room Availability ---
   async checkRoom(roomCode) {
     const cleanCode = String(roomCode || '').trim();

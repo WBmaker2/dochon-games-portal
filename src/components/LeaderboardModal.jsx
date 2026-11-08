@@ -44,6 +44,16 @@ export default function LeaderboardModal({ isOpen, onClose, activeTab = 'pacman'
 
   const [passwordAttempts, setPasswordAttempts] = useState(0);
   const ADMIN_LOCKOUT_ATTEMPTS = 5;
+  const ADMIN_LOCKOUT_MS = 30000;
+  const [lockedUntil, setLockedUntil] = useState(() => {
+    try {
+      return Number(localStorage.getItem('dochon_admin_locked_until') || 0);
+    } catch {
+      return 0;
+    }
+  });
+
+  const isLocked = Date.now() < lockedUntil;
 
   // Secret Hidden Trigger on Left Trophy Circle (Seamless Graphic)
   const handleTrophyClick = () => {
@@ -58,8 +68,9 @@ export default function LeaderboardModal({ isOpen, onClose, activeTab = 'pacman'
     e.preventDefault();
     const cleanInput = String(passwordInput).trim();
     const expected = (import.meta.env.VITE_ADMIN_PASS || '').trim();
-    if (passwordAttempts >= ADMIN_LOCKOUT_ATTEMPTS) {
-      setPasswordError('🔒 입력 횟수를 초과했습니다. 잠시 후 다시 시도하세요.');
+    if (Date.now() < lockedUntil) {
+      const remain = Math.ceil((lockedUntil - Date.now()) / 1000);
+      setPasswordError(`🔒 입력 횟수를 초과했습니다. ${remain}초 후 다시 시도하세요.`);
       return;
     }
     if (expected && cleanInput === expected) {
@@ -68,11 +79,16 @@ export default function LeaderboardModal({ isOpen, onClose, activeTab = 'pacman'
       setPasswordInput('');
       setPasswordError('');
       setPasswordAttempts(0);
+      setLockedUntil(0);
+      try { localStorage.removeItem('dochon_admin_locked_until'); } catch {}
     } else {
       const nextAttempts = passwordAttempts + 1;
       setPasswordAttempts(nextAttempts);
       if (nextAttempts >= ADMIN_LOCKOUT_ATTEMPTS) {
-        setPasswordError('🔒 입력 횟수를 초과했습니다. 잠시 후 다시 시도하세요.');
+        const until = Date.now() + ADMIN_LOCKOUT_MS;
+        setLockedUntil(until);
+        try { localStorage.setItem('dochon_admin_locked_until', String(until)); } catch {}
+        setPasswordError('🔒 입력 횟수를 초과했습니다. 30초 후 다시 시도하세요.');
       } else {
         setPasswordError('❌ 관리자 암호가 올바르지 않습니다.');
       }

@@ -4,6 +4,7 @@ import LeaderboardModal from './components/LeaderboardModal';
 const ChangelogModal = lazy(() => import('./components/ChangelogModal'));
 import GuideModal from './components/GuideModal';
 import RulesNoticeModal from './components/RulesNoticeModal';
+import ProfileModal from './components/ProfileModal';
 import GameErrorBoundary from './components/GameErrorBoundary';
 import { AudioProvider } from './components/AudioProvider';
 import { PLAYABLE_GAMES, COMING_SOON_GAMES, CATEGORY_DEFINITIONS } from './data/gamesData';
@@ -13,7 +14,7 @@ import { getRankedPlayableGames } from './utils/rankingAlgorithm';
 import { GAME_COMPONENTS, validateRegistry } from './data/gameRegistry';
 import { soundFx } from './utils/audio';
 import { haptics } from './utils/haptics';
-import { Trophy, X, Lock, Gamepad2, Dices, Heart, Crown, History, HelpCircle, Smartphone, RotateCcw, ShieldCheck, Search, Volume2, VolumeX } from 'lucide-react';
+import { Trophy, X, Lock, Gamepad2, Dices, Heart, Crown, History, HelpCircle, Smartphone, RotateCcw, ShieldCheck, Search, Volume2, VolumeX, User, Download } from 'lucide-react';
 
 // Registry lives in src/data/gameRegistry.js (single source of truth)
 
@@ -33,6 +34,9 @@ export default function App() {
   });
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installToast, setInstallToast] = useState('');
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isGameOrientationDismissed, setIsGameOrientationDismissed] = useState(false);
   const [leaderboardTab, setLeaderboardTab] = useState('pacman');
@@ -95,6 +99,28 @@ export default function App() {
     }
   }, [activeGame]);
 
+  useEffect(() => {
+    const onBeforeInstall = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    const onInstalled = () => { setInstallPrompt(null); setInstallToast('설치가 완료됐어요.'); };
+    window.addEventListener('beforeinstallprompt', onBeforeInstall);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      try { await installPrompt.userChoice; } catch {}
+      setInstallPrompt(null);
+    } else {
+      setInstallToast('공유 → 홈 화면에 추가를 눌러 설치하세요.');
+      setTimeout(() => setInstallToast(''), 3000);
+    }
+  };
+
   const toggleFavorite = (gameId) => {
     setFavorites(prev => {
       const next = prev.includes(gameId)
@@ -118,8 +144,14 @@ export default function App() {
   const writeGameParam = (gameId, mode = 'push') => {
     try {
       const url = new URL(window.location.href);
-      if (gameId) url.searchParams.set('game', gameId);
-      else url.searchParams.delete('game');
+      if (gameId) {
+        url.searchParams.set('game', gameId);
+        // &room= 초대는 게임 파라미터와 함께 유지한다 (snowball 파일럿).
+        // room이 없으면 그대로 유지하되, 다른 게임이면 제거하지 않는다.
+      } else {
+        url.searchParams.delete('game');
+        url.searchParams.delete('room');
+      }
       const next = `${url.pathname}${url.search}${url.hash}`;
       if (mode === 'push') window.history.pushState(null, '', next);
       else window.history.replaceState(null, '', next);
@@ -313,6 +345,24 @@ export default function App() {
             >
               <History className="w-3.5 h-3.5 text-amber-400" />
               <span>업데이트</span>
+            </button>
+
+            <button
+              onClick={() => setIsProfileOpen(true)}
+              className="btn-guide shadow-md flex items-center gap-1.5"
+              title="내 최고 점수와 최근 기록 확인하기"
+            >
+              <User className="w-3.5 h-3.5 text-emerald-400" />
+              <span>내 기록</span>
+            </button>
+
+            <button
+              onClick={handleInstall}
+              className="btn-guide shadow-md flex items-center gap-1.5"
+              title="앱으로 설치하기"
+            >
+              <Download className="w-3.5 h-3.5 text-sky-400" />
+              <span>설치</span>
             </button>
 
             {/* 💡 Portal Guide & Instructions Button */}
@@ -668,7 +718,7 @@ export default function App() {
 
             {/* Modal Game Content Area with Code Splitting Suspense & Error Boundary */}
             <div className="game-modal-body">
-              <GameErrorBoundary onClose={() => closeGame()} onRetry={() => setGameAttempt(prev => prev + 1)}>
+              <GameErrorBoundary key={`${activeGame}-${gameAttempt}`} onClose={() => closeGame()} onRetry={() => setGameAttempt(prev => prev + 1)}>
                 <Suspense fallback={
                   <div style={{
                     display: 'flex',
@@ -736,6 +786,14 @@ export default function App() {
         isOpen={isRulesOpen}
         onClose={() => setIsRulesOpen(false)}
       />
+
+      <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+
+      {installToast && (
+        <div role="status" style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', background: '#0F172A', color: '#FDE68A', padding: '10px 16px', borderRadius: '9999px', fontSize: '13px', fontWeight: 800, boxShadow: '0 10px 30px rgba(0,0,0,0.4)', zIndex: 999 }}>
+          {installToast}
+        </div>
+      )}
 
       {/* 9. Centered Footer */}
       <footer className="portal-footer">
